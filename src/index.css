@@ -1,0 +1,54 @@
+/* 동글동글한 귀여운 폰트 - Gamja Flower & Nanum Gothic Rounded */
+@import url('https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Nanum+Gothic:wght@400;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Gamja Flower', 'Nanum Gothic', -apple-system, BlinkMacSystemFont, system-ui, 'Roboto', 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0a0a;
+  background-image: 
+    radial-gradient(ellipse at top, rgba(219, 39, 119, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, rgba(168, 85, 247, 0.15) 0%, transparent 50%);
+  min-height: 100vh;
+}
+
+/* 로딩 바 애니메이션 */
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.5s ease-in-out infinite;
+}
+
+/* 하트 떨어지는 애니메이션 */
+@keyframes float-heart {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* 펄스 애니메이션 */
+@keyframes pulse-soft {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
