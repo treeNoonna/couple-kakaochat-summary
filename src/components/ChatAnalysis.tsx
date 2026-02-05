@@ -1,6 +1,7 @@
 import { useState, useMemo, memo } from 'react'
 import type { AnalysisResult } from '../types/chat'
 import { calculatePercentage } from '../utils/parser'
+import SummaryModal from './SummaryModal'
 
 interface ChatAnalysisProps {
   analysis: AnalysisResult
@@ -8,40 +9,45 @@ interface ChatAnalysisProps {
 }
 
 // best practice: rerender-memo - 메모이제이션으로 최적화
-const UserStatsCard = memo(function UserStatsCard({ 
-  user, 
-  messageCount, 
-  totalMessages 
-}: { 
+const UserStatsCard = memo(function UserStatsCard({
+  user,
+  messageCount,
+  totalMessages
+}: {
   user: string
   messageCount: number
-  totalMessages: number 
+  totalMessages: number
 }) {
   const percentage = calculatePercentage(messageCount, totalMessages)
   
   return (
-    <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-5 sm:p-6 rounded-3xl shadow-lg shadow-pink-500/20 border-2 border-pink-500 hover:shadow-xl hover:shadow-pink-500/40 transition-all">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-2xl">💝</span>
-        <h3 className="font-bold text-lg sm:text-xl text-pink-400">{user}</h3>
-      </div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm sm:text-base text-gray-400 font-medium">메시지</span>
-        <span className="font-bold text-2xl sm:text-3xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-          {messageCount}개
-        </span>
-      </div>
-      <div className="mt-4">
-        <div className="flex justify-between text-xs sm:text-sm text-gray-400 mb-2 font-medium">
-          <span>대화 비중</span>
-          <span className="font-bold text-pink-400">{percentage}%</span>
+    <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-5 sm:p-6 rounded-3xl shadow-lg shadow-pink-500/20 border-2 border-pink-500 hover:shadow-xl hover:shadow-pink-500/40 transition-all h-full flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-2xl">💝</span>
+          <h3 className="font-bold text-lg sm:text-xl text-pink-400">{user}</h3>
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-3 sm:h-4 overflow-hidden">
-          <div 
-            className="bg-gradient-to-r from-pink-500 to-purple-500 h-full rounded-full transition-all duration-500 shadow-lg"
-            style={{ width: `${percentage}%` }}
-          />
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm sm:text-base text-gray-400 font-medium">메시지</span>
+          <span className="font-bold text-2xl sm:text-3xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+            {messageCount}개
+          </span>
         </div>
+        <div className="mt-4">
+          <div className="flex justify-between text-xs sm:text-sm text-gray-400 mb-2 font-medium">
+            <span>대화 비중</span>
+            <span className="font-bold text-pink-400">{percentage}%</span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-3 sm:h-4 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-pink-500 to-purple-500 h-full rounded-full transition-all duration-500 shadow-lg"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+      </div>
+      <div className="text-center text-xs text-pink-400/70 mt-4 font-medium">
+        클릭해서 AI 요약 보기 🧠
       </div>
     </div>
   )
@@ -52,6 +58,13 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [keywords, setKeywords] = useState<string[]>([])
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
+  
+  // AI 요약 모달 상태
+  const [isSummaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryUser, setSummaryUser] = useState<string | null>(null);
+  const [summaryContent, setSummaryContent] = useState<string | null>(null);
+  const [isSummaryLoading, setSummaryLoading] = useState(false);
+
   
   // best practice: rerender-derived-state - 파생 상태 계산
   const keywordStats = useMemo(() => {
@@ -126,6 +139,50 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedUser(null)
   }
   
+  const handleUserSummaryClick = async (user: string) => {
+    setSummaryUser(user);
+    setSummaryModalOpen(true);
+    setSummaryLoading(true);
+    setSummaryContent(null);
+
+    // 사용자의 모든 메시지 수집
+    const userMessages = analysis.messages
+      .filter(msg => msg.sender === user)
+      .map(msg => `[${msg.timestamp}] ${msg.sender}: ${msg.message}`)
+      .join('\n');
+
+    try {
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: userMessages }),
+      });
+
+      if (!response.ok) {
+        throw new Error('서버에서 요약을 가져오지 못했습니다.');
+      }
+
+      const data = await response.json();
+      setSummaryContent(data.summary);
+    } catch (error) {
+      console.error(error);
+      setSummaryContent('요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const handleCloseSummaryModal = () => {
+    setSummaryModalOpen(false);
+    // 애니메이션을 위해 약간의 딜레이 후 상태 초기화
+    setTimeout(() => {
+      setSummaryUser(null);
+      setSummaryContent(null);
+    }, 300);
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* 헤더 */}
@@ -160,16 +217,21 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-purple-500/20 p-5 sm:p-6 border border-purple-500/30">
         <h2 className="text-xl sm:text-2xl font-bold text-pink-400 mb-4 sm:mb-5 flex items-center gap-2">
           <span>💖</span>
-          <span>우리의 대화 비중</span>
+          <span>우리의 대화 요약</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {Array.from(analysis.stats.messagesByUser.entries()).map(([user, count]) => (
-            <UserStatsCard 
+            <div
               key={user}
-              user={user}
-              messageCount={count}
-              totalMessages={analysis.stats.totalMessages}
-            />
+              className="cursor-pointer"
+              onClick={() => handleUserSummaryClick(user)}
+            >
+              <UserStatsCard 
+                user={user}
+                messageCount={count}
+                totalMessages={analysis.stats.totalMessages}
+              />
+            </div>
           ))}
         </div>
       </div>
@@ -188,7 +250,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="키워드 입력 (예: 사랑, 보고싶어)"
+            placeholder="키워드 입력"
             className="flex-1 px-4 py-3 sm:py-3.5 bg-gray-800 border-2 border-pink-500 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 text-sm sm:text-base placeholder-gray-500 text-white"
           />
           <button
@@ -349,6 +411,15 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           </div>
         </div>
       )}
+
+      {/* AI 요약 모달 */}
+      <SummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={handleCloseSummaryModal}
+        summary={summaryContent}
+        isLoading={isSummaryLoading}
+        user={summaryUser || ''}
+      />
     </div>
   )
 }

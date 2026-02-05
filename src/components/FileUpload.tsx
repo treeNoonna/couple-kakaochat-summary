@@ -105,7 +105,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           <div className="text-center">
             <div className="text-5xl sm:text-6xl mb-4">💖</div>
             <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
-              여러 대화 파일 한번에
+              모든 메시지 도큐멘트 한번에 업로드
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
               폴더 안의 모든 .txt 파일을 분석해요
@@ -144,11 +144,11 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
         <ol className="space-y-2 text-xs sm:text-sm text-gray-300">
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">1.</span>
-            <span>카카오톡 대화방 메뉴 → 대화 내보내기</span>
+            <span>카카오톡 채팅방 설정 → 대화 내용 내보내기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
-            <span>텍스트 파일(.txt)로 저장하기</span>
+            <span>텍스트 파일(.txt)로 저장하기 or 모든 메시지 도큐멘트로 저장하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>

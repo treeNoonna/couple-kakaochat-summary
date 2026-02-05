@@ -32,7 +32,6 @@ export function parseChatFile(content: string): ChatMessage[] {
 }
 
 // 채팅 통계 계산
-// 참고: React.cache()는 Next.js의 서버 컴포넌트(RSC)에서만 사용 가능하며,
 // 클라이언트 사이드 앱에서는 useMemo() 같은 클라이언트 최적화 기법을 사용합니다.
 export function calculateStats(messages: ChatMessage[], keywords: string[]): AnalysisResult {
   const stats: ChatStats = {
