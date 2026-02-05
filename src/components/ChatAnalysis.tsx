@@ -46,7 +46,7 @@ const UserStatsCard = memo(function UserStatsCard({
           </div>
         </div>
       </div>
-      <div className="text-center text-xs text-pink-400/70 mt-4 font-medium">
+      <div className="text-center text-sm text-pink-400/70 mt-4 font-medium">
         클릭해서 AI 요약 보기 🧠
       </div>
     </div>
@@ -253,7 +253,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         </h2>
         
         {/* 키워드 입력 */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <input
             type="text"
             value={keywordInput}
@@ -264,7 +264,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           />
           <button
             onClick={handleAddKeyword}
-            className="px-5 sm:px-7 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base"
+            className="w-full sm:w-auto px-5 sm:px-7 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base"
           >
             추가
           </button>
