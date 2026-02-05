@@ -23,10 +23,9 @@ const SummaryModal: React.FC<SummaryModalProps> = ({ isOpen, onClose, summary, i
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-2xl font-bold text-pink-400 mb-4 flex items-center gap-3">
-          <span>🧠</span>
           <span>{user}님 대화 분석</span>
         </h3>
-        <div className="overflow-y-auto flex-grow">
+        <div className="overflow-y-auto flex-grow min-h-0">
           {isLoading ? (
             <div className="flex justify-center items-center h-32">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-400"></div>
