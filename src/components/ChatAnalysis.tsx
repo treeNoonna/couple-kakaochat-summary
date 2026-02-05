@@ -64,6 +64,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [summaryUser, setSummaryUser] = useState<string | null>(null);
   const [summaryContent, setSummaryContent] = useState<string | null>(null);
   const [isSummaryLoading, setSummaryLoading] = useState(false);
+  const [summaryCache, setSummaryCache] = useState<Record<string, string>>({});
 
   
   // best practice: rerender-derived-state - 파생 상태 계산
@@ -142,6 +143,13 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const handleUserSummaryClick = async (user: string) => {
     setSummaryUser(user);
     setSummaryModalOpen(true);
+
+    if (summaryCache[user]) {
+      setSummaryContent(summaryCache[user]);
+      setSummaryLoading(false);
+      return;
+    }
+
     setSummaryLoading(true);
     setSummaryContent(null);
 
@@ -166,6 +174,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
 
       const data = await response.json();
       setSummaryContent(data.summary);
+      setSummaryCache(prev => ({ ...prev, [user]: data.summary }));
     } catch (error) {
       console.error(error);
       setSummaryContent('요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.');
