@@ -503,6 +503,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                   <YAxis
                     stroke="#BBB"
                     tick={{ fill: '#BBB' }}
+                    fontSize='12px'
                   />
                   <Tooltip
                     contentStyle={{
