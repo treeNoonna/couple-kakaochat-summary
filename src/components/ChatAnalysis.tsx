@@ -175,73 +175,35 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     return result;
   }, [analysis.messages, analysis.users]);
   
-  // 주별 메시지 수 분석
-  const weeklyMessageData = useMemo(() => {
-    const getWeekStartDate = (date: Date): string => {
-      const day = date.getDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      const monday = new Date(date);
-      monday.setDate(date.getDate() + diff);
-      
-      const year = monday.getFullYear();
-      const month = String(monday.getMonth() + 1).padStart(2, '0');
-      const day2 = String(monday.getDate()).padStart(2, '0');
-      
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const endYear = sunday.getFullYear();
-      const endMonth = String(sunday.getMonth() + 1).padStart(2, '0');
-      const endDay = String(sunday.getDate()).padStart(2, '0');
-      
-      // 연도가 다른 경우와 같은 경우 구분
-      if (year === endYear) {
-        return `${year}.${month}.${day2}~${endMonth}.${endDay}`;
-      } else {
-        return `${year}.${month}.${day2}~${endYear}.${endMonth}.${endDay}`;
-      }
-    };
-    
-    const weeklyData = new Map<string, Map<string, number>>();
+  // 월별 메시지 수 분석
+  const monthlyMessageData = useMemo(() => {
+    const monthlyData = new Map<string, Map<string, number>>();
     
     for (const msg of analysis.messages) {
       const dateMatch = msg.timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
       if (dateMatch) {
-        const year = parseInt(dateMatch[1]);
-        const month = parseInt(dateMatch[2]) - 1;
-        const day = parseInt(dateMatch[3]);
-        const msgDate = new Date(year, month, day);
+        const year = dateMatch[1];
+        const month = dateMatch[2].padStart(2, '0');
+        const monthKey = `${year}.${month}`;
         
-        const weekKey = getWeekStartDate(msgDate);
-        
-        if (!weeklyData.has(weekKey)) {
-          weeklyData.set(weekKey, new Map());
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, new Map());
         }
         
-        const weekData = weeklyData.get(weekKey)!;
-        weekData.set(msg.sender, (weekData.get(msg.sender) || 0) + 1);
+        const monthStats = monthlyData.get(monthKey)!;
+        monthStats.set(msg.sender, (monthStats.get(msg.sender) || 0) + 1);
       }
     }
     
-    const chartData = Array.from(weeklyData.entries())
-      .map(([week, userData]) => {
-        const dataPoint: any = { week };
+    const chartData = Array.from(monthlyData.entries())
+      .map(([month, userData]) => {
+        const dataPoint: any = { month };
         analysis.users.forEach(user => {
           dataPoint[user] = userData.get(user) || 0;
         });
         return dataPoint;
       })
-      .sort((a, b) => {
-        // 연도.월.일 형식을 파싱하여 정렬
-        const parseDate = (weekStr: string) => {
-          const startDate = weekStr.split('~')[0];
-          const parts = startDate.split('.');
-          return parts.join(''); // "2025.11.04" -> "20251104"
-        };
-        
-        const dateA = parseDate(a.week);
-        const dateB = parseDate(b.week);
-        return dateA.localeCompare(dateB);
-      });
+      .sort((a, b) => a.month.localeCompare(b.month));
     
     return chartData;
   }, [analysis.messages, analysis.users]);
@@ -329,7 +291,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     if (!analysisRef.current) return;
     
     setIsDownloading(true);
-    analysisRef.current.classList.add('capture-solid-text');
     
     try {
       // 키워드 검색 섹션을 제외하고 캡처
@@ -402,9 +363,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       console.error('이미지 저장 실패:', error);
       alert('이미지 저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
-      if (analysisRef.current) {
-        analysisRef.current.classList.remove('capture-solid-text');
-      }
       setIsDownloading(false);
     }
   }
@@ -422,21 +380,21 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             <button
               onClick={handleDownloadImage}
               disabled={isDownloading}
-              className="flex items-center justify-center flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {isDownloading ? '저장 중...' : (
                 <>
-                  <span className="hidden sm:inline">이미지 저장 <span className="capture-hide-emoji">📸</span></span>
-                  <span className="sm:hidden">저장 <span className="capture-hide-emoji">📸</span></span>
+                  <span className="hidden sm:inline">이미지 저장 📸</span>
+                  <span className="sm:hidden">저장 📸</span>
                 </>
               )}
             </button>
             <button
               onClick={onReset}
-              className="flex items-center justify-center flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
             >
-              <span className="hidden sm:inline">다시 분석 <span className="capture-hide-emoji">🔄</span></span>
-              <span className="sm:hidden">다시 <span className="capture-hide-emoji">🔄</span></span>
+              <span className="hidden sm:inline">다시 분석 🔄</span>
+              <span className="sm:hidden">다시 🔄</span>
             </button>
           </div>
         </div>
@@ -475,7 +433,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             <span>자주 사용한 단어</span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {analysis.users.map((user) => {
+            {analysis.users.map((user, index) => {
               const topWords = userWordAnalysis.get(user) || [];
               const chartData = topWords.map((item, idx) => ({
                 name: item.word,
@@ -516,19 +474,19 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           </div>
         </div>
         
-        {/* 주별 메시지 추이 */}
+        {/* 월별 메시지 추이 */}
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
             <span>📈</span>
-            <span>주차별 메시지</span>
+            <span>월별 메시지</span>
           </h2>
           <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
             <div style={{ width: '100%', height: 400 }}>
               <ResponsiveContainer>
-                <LineChart data={weeklyMessageData}>
+                <LineChart data={monthlyMessageData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                   <XAxis
-                    dataKey="week"
+                    dataKey="month"
                     stroke="#BBB"
                     tick={{ fill: '#BBB', fontSize: 11 }}
                     angle={-45}
@@ -652,7 +610,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           <div className="text-center py-10 sm:py-12">
             <div className="text-5xl sm:text-6xl mb-3">💭</div>
             <p className="text-gray-400 font-medium text-sm sm:text-base">
-              키워드를 검색해서 메세지를 찾아보세요
+              키워드를 추가해서 분석을 시작해보세요
             </p>
           </div>
         )}
