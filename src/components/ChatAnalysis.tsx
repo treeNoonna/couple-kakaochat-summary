@@ -513,7 +513,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                                   fontWeight: '500',
                                   fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
                                 }}
-                              >
+                                >
                                 { `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                               </text>
                             );
