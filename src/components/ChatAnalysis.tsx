@@ -510,7 +510,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                                 dominantBaseline="central" 
                                 style={{ 
                                   fontSize: '12px', 
-                                  fontWeight: '600',
+                                  fontWeight: '500',
                                   fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
                                 }}
                               >
