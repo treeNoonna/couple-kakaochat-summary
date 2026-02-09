@@ -433,7 +433,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             <span>자주 사용한 단어</span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {analysis.users.map((user, index) => {
+            {analysis.users.map((user) => {
               const topWords = userWordAnalysis.get(user) || [];
               const chartData = topWords.map((item, idx) => ({
                 name: item.word,
