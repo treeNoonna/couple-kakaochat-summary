@@ -12,7 +12,7 @@ interface UserAnalysisModalProps {
   analysis: UserAnalysis | null;
 }
 
-const COLORS = ['#BB86FC', '#CF6679', '#03DAC6', '#FFD700', '#F2B880'];
+const COLORS = ['#BB86FC', '#CF6679', '#03DAC6', '#FFD700', '#F2B880', '#FF6B9D', '#4ECDC4', '#FFA07A', '#98D8C8', '#F7DC6F'];
 
 const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, user, analysis }) => {
   if (!isOpen || !analysis || !user) {
@@ -40,7 +40,7 @@ const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, 
         
         <div className="space-y-6">
           <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
-            <h4 className="text-lg font-bold text-gray-200 mb-4 text-center">자주 사용한 단어 TOP 5</h4>
+            <h4 className="text-lg font-bold text-gray-200 mb-4 text-center">자주 사용한 단어 TOP 10</h4>
             <div style={{ width: '100%', height: 300 }}>
               <ResponsiveContainer>
                 <PieChart>

@@ -76,76 +76,46 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   
   // best practice: rerender-derived-state - 파생 상태 계산
   const keywordStats = useMemo(() => {
-    if (keywords.length === 0) return null;
-
-    const stats = new Map<string, Map<string, number>>();
-    analysis.users.forEach(user => {
-      const userStats = new Map<string, number>();
-      keywords.forEach(k => userStats.set(k, 0));
-      stats.set(user, userStats);
-    });
-
-    const lowerKeywords = keywords.map(k => k.toLowerCase());
-    const keywordMap = new Map(keywords.map((k, i) => [lowerKeywords[i], k]));
-    const notDelimiterRegex = /[a-z0-9가-힣]/;
-
+    if (keywords.length === 0) return null
+    
+    const stats = new Map<string, Map<string, number>>()
+    
+    // best practice: js-set-map-lookups - Set으로 O(1) 검색
+    const keywordSet = new Set(keywords.map(k => k.toLowerCase()))
+    
     for (const msg of analysis.messages) {
-      const userStats = stats.get(msg.sender);
-      if (!userStats) continue;
+      const lowerMessage = msg.message.toLowerCase()
       
-      const lowerMessage = msg.message.toLowerCase();
-
-      for (const lowerKeyword of lowerKeywords) {
-        let count = 0;
-        let lastIndex = -1;
-        while ((lastIndex = lowerMessage.indexOf(lowerKeyword, lastIndex + 1)) !== -1) {
-            const prevChar = lowerMessage[lastIndex - 1];
-            const nextChar = lowerMessage[lastIndex + lowerKeyword.length];
-
-            const isPrevCharDelimiter = !prevChar || !notDelimiterRegex.test(prevChar);
-            const isNextCharDelimiter = !nextChar || !notDelimiterRegex.test(nextChar);
-
-            if (isPrevCharDelimiter && isNextCharDelimiter) {
-                count++;
-            }
-        }
-
+      for (const keyword of keywords) {
+        const lowerKeyword = keyword.toLowerCase()
+        if (!keywordSet.has(lowerKeyword)) continue
+        
+        const count = (lowerMessage.match(new RegExp(lowerKeyword, 'g')) || []).length
         if (count > 0) {
-          const originalKeyword = keywordMap.get(lowerKeyword)!;
-          userStats.set(originalKeyword, (userStats.get(originalKeyword) || 0) + count);
+          if (!stats.has(msg.sender)) {
+            stats.set(msg.sender, new Map())
+          }
+          const userStats = stats.get(msg.sender)!
+          userStats.set(keyword, (userStats.get(keyword) || 0) + count)
         }
       }
     }
-
-    return stats;
-  }, [keywords, analysis.messages, analysis.users]);
+    
+    return stats
+  }, [keywords, analysis.messages]);
   
   // 선택된 키워드가 포함된 메시지 필터링
   const filteredMessages = useMemo(() => {
-    if (!selectedKeyword) return [];
+    if (!selectedKeyword) return []
     
-    const lowerKeyword = selectedKeyword.toLowerCase();
-    const notDelimiterRegex = /[a-z0-9가-힣]/;
+    const lowerKeyword = selectedKeyword.toLowerCase()
     
     return analysis.messages.filter(msg => {
-      if (selectedUser && msg.sender !== selectedUser) return false;
+      // 사용자 필터가 있으면 해당 사용자만
+      if (selectedUser && msg.sender !== selectedUser) return false
       
-      const lowerMessage = msg.message.toLowerCase();
-      let lastIndex = -1;
-
-      while ((lastIndex = lowerMessage.indexOf(lowerKeyword, lastIndex + 1)) !== -1) {
-          const prevChar = lowerMessage[lastIndex - 1];
-          const nextChar = lowerMessage[lastIndex + lowerKeyword.length];
-
-          const isPrevCharDelimiter = !prevChar || !notDelimiterRegex.test(prevChar);
-          const isNextCharDelimiter = !nextChar || !notDelimiterRegex.test(nextChar);
-
-          if (isPrevCharDelimiter && isNextCharDelimiter) {
-              return true; // Found a whole word match
-          }
-      }
-      return false;
-    });
+      return msg.message.toLowerCase().includes(lowerKeyword)
+    })
   }, [selectedKeyword, selectedUser, analysis.messages]);
   
   // best practice: rerender-functional-setstate - 함수형 업데이트로 안정적인 콜백
@@ -186,19 +156,19 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
 
     for (const msg of userMessages) {
       // 1. 단어로 분리 (공백, 구두점 기준)
-      const words = msg.message.toLowerCase().split(/[\s,.\-!?~"“”…]+/);
+      const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
       
       for (const word of words) {
-        if (word && !stopwords.has(word)) {
-          // 2. 불용어 제외하고 단어 카운트
+        // 2. 불용어 제외하고, 한글자 단어 제외하고 카운트
+        if (word && word.length > 1 && !stopwords.has(word)) {
           wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
         }
       }
     }
 
-    // 3. 가장 많이 사용된 단어 5개 추출
+    // 3. 가장 많이 사용된 단어 10개 추출
     const sortedWords = Array.from(wordCounts.entries()).sort((a, b) => b[1] - a[1]);
-    const topWords = sortedWords.slice(0, 5).map(([word, count]) => ({ word, count }));
+    const topWords = sortedWords.slice(0, 10).map(([word, count]) => ({ word, count }));
 
     setUserAnalysisResult({ topWords });
     setAnalysisUser(user);
@@ -408,8 +378,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                       <span className="text-[10px] sm:text-xs text-gray-500">{msg.timestamp}</span>
                     </div>
                     <p className="text-gray-300 whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed">
-                      {/* 키워드 하이라이트 (단어 단위) */}
-                      {msg.message.split(/([\s,.\-!?~"“”…]+)/).map((part, i) => (
+                      {/* 키워드 하이라이트 */}
+                      {msg.message.split(new RegExp(`(${selectedKeyword})`, 'gi')).map((part, i) => (
                         part.toLowerCase() === selectedKeyword.toLowerCase() ? (
                           <mark key={i} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold px-1.5 py-0.5 rounded">
                             {part}
@@ -452,4 +422,3 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     </div>
   )
 }
-
