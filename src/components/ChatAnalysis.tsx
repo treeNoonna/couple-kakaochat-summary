@@ -455,14 +455,21 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                           outerRadius={80}
                           dataKey="value"
                           nameKey="name"
-                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'rgba(30, 30, 30, 0.9)',
-                            borderColor: '#555',
-                            borderRadius: '10px',
-                            color: '#fff'
+                          label={({ name, percent, cx, cy, midAngle, outerRadius}) =>  {
+                            const RADIAN = Math.PI / 180;
+                            const radius = outerRadius + 60;
+                            const x = (cx as number) + radius * Math.cos(-(midAngle || 0) * RADIAN);
+                            const y = (cy as number) + radius * Math.sin(-(midAngle || 0) * RADIAN);
+                            return (
+                              <text x={x} y={y} 
+                                fill="white" 
+                                textAnchor={x > cx ? 'start' : 'end'} 
+                                dominantBaseline="auto" 
+                                style={{ fontSize: '11px' }}
+                              >
+                                { `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                              </text>
+                            );
                           }}
                         />
                       </PieChart>
@@ -502,7 +509,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                       backgroundColor: 'rgba(30, 30, 30, 0.9)',
                       borderColor: '#555',
                       borderRadius: '10px',
-                      color: '#fff'
+                      color: '#fff',
+                      fontSize: '12px'
                     }}
                   />
                   <Legend wrapperStyle={{ color: '#BBB' }} />
