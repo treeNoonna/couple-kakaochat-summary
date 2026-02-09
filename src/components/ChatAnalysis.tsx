@@ -144,20 +144,23 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSummaryUser(user);
     setSummaryModalOpen(true);
 
+    // 1. 캐시 확인: 캐시된 내용이 있으면 즉시 보여주고 종료
     if (summaryCache[user]) {
       setSummaryContent(summaryCache[user]);
       setSummaryLoading(false);
       return;
     }
 
+    // 2. 스트리밍 시작: 로딩 상태 활성화 및 기존 내용 초기화
     setSummaryLoading(true);
-    setSummaryContent(null);
+    setSummaryContent(''); // 스트리밍 중인 텍스트를 표시하기 위해 빈 문자열로 시작
 
-    // 사용자의 모든 메시지 수집
     const userMessages = analysis.messages
-      .filter(msg => msg.sender === user)
-      .map(msg => `[${msg.timestamp}] ${msg.sender}: ${msg.message}`)
-      .join('\n');
+      .filter((msg) => msg.sender === user)
+      .map((msg) => ({
+        role: 'user' as const,
+        content: `[${msg.timestamp}] ${msg.message}`,
+      }));
 
     try {
       const response = await fetch('/api/summarize', {
@@ -165,20 +168,47 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        // 백엔드가 Vercel AI SDK 형식에 맞게 `messages` 객체 배열을 받도록 수정
         body: JSON.stringify({ messages: userMessages }),
       });
 
       if (!response.ok) {
-        throw new Error('서버에서 요약을 가져오지 못했습니다.');
+        throw new Error('서버 응답 오류');
       }
 
-      const data = await response.json();
-      setSummaryContent(data.summary);
-      setSummaryCache(prev => ({ ...prev, [user]: data.summary }));
+      // 3. 스트리밍 처리
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('스트림을 읽을 수 없습니다.');
+      }
+      
+      const decoder = new TextDecoder();
+      let finalSummary = '';
+
+      // 스트림이 끝날 때까지 계속해서 청크를 읽어옴
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break; // 스트림 종료
+
+        const chunk = decoder.decode(value);
+        finalSummary += chunk;
+        
+        // 화면에 스트리밍 중인 텍스트를 실시간으로 업데이트
+        setSummaryContent(finalSummary);
+      }
+      
+      // 4. 캐시 저장: 스트림이 끝나면 완성된 요약문을 캐시에 저장
+      if (finalSummary) {
+        setSummaryCache(prev => ({ ...prev, [user]: finalSummary }));
+      }
+
     } catch (error) {
       console.error(error);
-      setSummaryContent('요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.');
+      const errorMessage = '요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.';
+      setSummaryContent(errorMessage);
+      // 실패한 결과는 캐시하지 않음
     } finally {
+      // 5. 로딩 종료
       setSummaryLoading(false);
     }
   };

@@ -36,7 +36,7 @@ export default function LoadingAnimation() {
           대화 분석 중...
         </h3>
         <p className="text-pink-300 text-sm sm:text-base font-medium mb-1">
-          우리의 특별한 이야기를
+          우리의 특별한 이야기를 정리하고 있어요 💖
         </p>
         <p className="text-purple-300 text-sm sm:text-base font-medium">
           정리하고 있어요 💕

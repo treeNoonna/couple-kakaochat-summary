@@ -59,7 +59,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       <div className="text-center mb-8 sm:mb-10">
         <div className="text-6xl sm:text-7xl mb-4 animate-pulse-soft">💕</div>
         <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 drop-shadow-lg">
-          카카오톡 채팅 분석
+          카카오톡 채팅 분석기
         </h1>
         <p className="text-pink-300 text-sm sm:text-base font-medium">
           두 사람의 특별한 이야기를 분석해보세요 ✨
@@ -148,7 +148,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
-            <span>텍스트 파일(.txt)로 저장하기 or 모든 메시지 도큐멘트로 저장하기</span>
+            <span>텍스트 파일(.txt)로 저장하기 or 모든 메시지 도큐멘트로  저장하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
