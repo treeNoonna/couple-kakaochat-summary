@@ -54,8 +54,9 @@ const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, 
                     outerRadius={100}
                     dataKey="value"
                     nameKey="name"
-                    
-                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => (
+                      <text style={{ fontSize: '12px' }}>{`${name} ${((percent || 0) * 100).toFixed(0)}%`}</text>
+                    )}
                   >
                   </Pie>
                   <Tooltip 
