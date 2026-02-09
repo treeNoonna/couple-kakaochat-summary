@@ -300,12 +300,41 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         (keywordSection as HTMLElement).style.display = 'none';
       }
       
+      // 투명 텍스트를 실제 색상으로 변경
+      const transparentTexts = analysisRef.current.querySelectorAll('.bg-clip-text');
+      const originalStyles: { element: Element; backgroundImage: string; webkitBackgroundClip: string; backgroundClip: string; color: string }[] = [];
+      
+      transparentTexts.forEach((element) => {
+        const el = element as HTMLElement;
+        originalStyles.push({
+          element: el,
+          backgroundImage: el.style.backgroundImage,
+          webkitBackgroundClip: el.style.webkitBackgroundClip,
+          backgroundClip: el.style.backgroundClip,
+          color: el.style.color
+        });
+        
+        // 투명 텍스트를 핑크색으로 변경
+        el.style.backgroundImage = 'none';
+        el.style.webkitBackgroundClip = 'unset';
+        el.style.backgroundClip = 'unset';
+        el.style.color = '#f472b6'; // text-pink-400
+      });
+      
+      // 버튼 숨기기
+      const buttons = analysisRef.current.querySelectorAll('button');
+      const buttonDisplays: string[] = [];
+      buttons.forEach((button) => {
+        buttonDisplays.push(button.style.display);
+        button.style.display = 'none';
+      });
+      
       // 모바일 여부 확인
       const isMobile = window.innerWidth < 768;
       
       const canvas = await html2canvas(analysisRef.current, {
         backgroundColor: '#0f0f0f',
-        scale: isMobile ? 1.5 : 2, // 모바일에서는 scale 낮춤 (메모리 절약)
+        scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: true,
@@ -315,6 +344,20 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       if (keywordSection) {
         (keywordSection as HTMLElement).style.display = originalDisplay;
       }
+      
+      // 투명 텍스트 원래대로 복원
+      originalStyles.forEach(({ element, backgroundImage, webkitBackgroundClip, backgroundClip, color }) => {
+        const el = element as HTMLElement;
+        el.style.backgroundImage = backgroundImage;
+        el.style.webkitBackgroundClip = webkitBackgroundClip;
+        el.style.backgroundClip = backgroundClip;
+        el.style.color = color;
+      });
+      
+      // 버튼 원래대로 복원
+      buttons.forEach((button, index) => {
+        button.style.display = buttonDisplays[index];
+      });
       
       // Blob 생성
       const blob = await new Promise<Blob>((resolve) => {
@@ -452,20 +495,24 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={80}
+                          outerRadius={60}
                           dataKey="value"
                           nameKey="name"
-                          label={({ name, percent, cx, cy, midAngle, outerRadius}) =>  {
+                          label={({ name, percent, cx, cy, midAngle, outerRadius, fill}) =>  {
                             const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 60;
+                            const radius = outerRadius + 15;
                             const x = (cx as number) + radius * Math.cos(-(midAngle || 0) * RADIAN);
                             const y = (cy as number) + radius * Math.sin(-(midAngle || 0) * RADIAN);
                             return (
                               <text x={x} y={y} 
-                                fill="white" 
+                                fill={fill} 
                                 textAnchor={x > cx ? 'start' : 'end'} 
-                                dominantBaseline="auto" 
-                                style={{ fontSize: '11px' }}
+                                dominantBaseline="central" 
+                                style={{ 
+                                  fontSize: '12px', 
+                                  fontWeight: '600',
+                                  fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                                }}
                               >
                                 { `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                               </text>
@@ -503,6 +550,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                   <YAxis
                     stroke="#BBB"
                     tick={{ fill: '#BBB' }}
+                    fontSize='12px'
                   />
                   <Tooltip
                     contentStyle={{
