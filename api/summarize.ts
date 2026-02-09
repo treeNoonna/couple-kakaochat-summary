@@ -1,11 +1,19 @@
 // api/summarize.ts
 import { Groq } from 'groq-sdk';
 import { Ollama } from 'ollama';
-import { generateText } from 'ai';
 
 export const config = {
   runtime: 'edge',
 };
+
+interface VercelChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface ChatRequest {
+  messages: VercelChatMessage[];
+}
 
 const customPrompt = `
   당신은 카카오톡 대화 내용을 분석하고 요약하는 전문가입니다.
@@ -39,12 +47,19 @@ export default async function handler(req: Request) {
     const groq = new Groq({ apiKey: groqApiKey });
 
     try {
-      const { text } = await generateText({
-        model: "llama3.1-70b-8192",
-        prompt: messages
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.1-70b-versatile",
+        messages: processedMessages,
+        temperature: 0.7,
+        max_tokens: 2048,
       });
-      console.log(text);
-      return text
+
+      const text = completion.choices[0]?.message?.content || 'No response generated.';
+      
+      return new Response(JSON.stringify({ text }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     } catch (error) {
       console.error('Groq API error:', error);
       return new Response('Error from Groq API.', { status: 500 });
@@ -54,23 +69,18 @@ export default async function handler(req: Request) {
     try {
       const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
 
-      const responseStream = await ollama.chat({
+      const response = await ollama.chat({
         model: 'llama3.1', // The model to use with Ollama
         messages: processedMessages,
-        stream: true,
+        stream: false,
       });
 
-      // Convert Ollama's stream to a format compatible with Vercel AI SDK
-      const stream = new ReadableStream({
-        async start(controller) {
-          for await (const chunk of responseStream) {
-            controller.enqueue(chunk.message.content);
-          }
-          controller.close();
-        },
+      const text = response.message.content || 'No response generated.';
+      
+      return new Response(JSON.stringify({ text }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
       });
-
-      return new StreamingTextResponse(stream);
     } catch (error) {
       console.error('Ollama API error:', error);
       return new Response(

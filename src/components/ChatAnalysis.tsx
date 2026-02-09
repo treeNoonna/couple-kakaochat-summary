@@ -151,16 +151,22 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       return;
     }
 
-    // 2. 스트리밍 시작: 로딩 상태 활성화 및 기존 내용 초기화
+    // 2. API 호출 시작: 로딩 상태 활성화
     setSummaryLoading(true);
-    setSummaryContent(''); // 스트리밍 중인 텍스트를 표시하기 위해 빈 문자열로 시작
+    setSummaryContent(null);
 
-    const userMessages = analysis.messages
+    // 모든 메시지를 하나의 텍스트로 합치기
+    const userMessagesText = analysis.messages
       .filter((msg) => msg.sender === user)
-      .map((msg) => ({
+      .map((msg) => `[${msg.timestamp}] ${msg.message}`)
+      .join('\n');
+
+    const messages = [
+      {
         role: 'user' as const,
-        content: `[${msg.timestamp}] ${msg.message}`,
-      }));
+        content: userMessagesText,
+      }
+    ];
 
     try {
       const response = await fetch('/api/summarize', {
@@ -168,39 +174,21 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        // 백엔드가 Vercel AI SDK 형식에 맞게 `messages` 객체 배열을 받도록 수정
-        body: JSON.stringify({ messages: userMessages }),
+        body: JSON.stringify({ messages }),
       });
 
       if (!response.ok) {
         throw new Error('서버 응답 오류');
       }
 
-      // 3. 스트리밍 처리
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('스트림을 읽을 수 없습니다.');
-      }
+      // 3. JSON 응답 처리
+      const data = await response.json();
+      const summary = data.text || '요약 내용이 없습니다.';
       
-      const decoder = new TextDecoder();
-      let finalSummary = '';
-
-      // 스트림이 끝날 때까지 계속해서 청크를 읽어옴
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break; // 스트림 종료
-
-        const chunk = decoder.decode(value);
-        finalSummary += chunk;
-        
-        // 화면에 스트리밍 중인 텍스트를 실시간으로 업데이트
-        setSummaryContent(finalSummary);
-      }
+      setSummaryContent(summary);
       
-      // 4. 캐시 저장: 스트림이 끝나면 완성된 요약문을 캐시에 저장
-      if (finalSummary) {
-        setSummaryCache(prev => ({ ...prev, [user]: finalSummary }));
-      }
+      // 4. 캐시 저장
+      setSummaryCache(prev => ({ ...prev, [user]: summary }));
 
     } catch (error) {
       console.error(error);
