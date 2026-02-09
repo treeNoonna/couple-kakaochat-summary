@@ -1,12 +1,21 @@
 import { useState, useMemo, memo } from 'react'
 import type { AnalysisResult } from '../types/chat'
 import { calculatePercentage } from '../utils/parser'
-import SummaryModal from './SummaryModal'
+import UserAnalysisModal from './UserAnalysisModal' // AI 요약 모달 대신 단어 분석 모달 임포트
+import type { UserAnalysis } from './UserAnalysisModal'
 
 interface ChatAnalysisProps {
   analysis: AnalysisResult
   onReset: () => void
 }
+
+// 한국어 불용어 목록
+const stopwords = new Set([
+  // 한국어 조사, 대명사, 동사/형용사 어미 등
+  '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ',
+  '사진', '이모티콘',
+]);
+
 
 // best practice: rerender-memo - 메모이제이션으로 최적화
 const UserStatsCard = memo(function UserStatsCard({
@@ -47,7 +56,7 @@ const UserStatsCard = memo(function UserStatsCard({
         </div>
       </div>
       <div className="text-center text-sm text-pink-400/70 mt-4 font-medium">
-        클릭해서 AI 요약 보기 🧠
+        클릭해서 자주 사용한 단어 확인 📊
       </div>
     </div>
   )
@@ -59,57 +68,85 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
   
-  // AI 요약 모달 상태
-  const [isSummaryModalOpen, setSummaryModalOpen] = useState(false);
-  const [summaryUser, setSummaryUser] = useState<string | null>(null);
-  const [summaryContent, setSummaryContent] = useState<string | null>(null);
-  const [isSummaryLoading, setSummaryLoading] = useState(false);
-  const [summaryCache, setSummaryCache] = useState<Record<string, string>>({});
+  // 단어 분석 모달 상태
+  const [isAnalysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [analysisUser, setAnalysisUser] = useState<string | null>(null);
+  const [userAnalysisResult, setUserAnalysisResult] = useState<UserAnalysis | null>(null);
 
   
   // best practice: rerender-derived-state - 파생 상태 계산
   const keywordStats = useMemo(() => {
-    if (keywords.length === 0) return null
-    
-    const stats = new Map<string, Map<string, number>>()
-    
-    // best practice: js-set-map-lookups - Set으로 O(1) 검색
-    const keywordSet = new Set(keywords.map(k => k.toLowerCase()))
-    
+    if (keywords.length === 0) return null;
+
+    const stats = new Map<string, Map<string, number>>();
+    analysis.users.forEach(user => {
+      const userStats = new Map<string, number>();
+      keywords.forEach(k => userStats.set(k, 0));
+      stats.set(user, userStats);
+    });
+
+    const lowerKeywords = keywords.map(k => k.toLowerCase());
+    const keywordMap = new Map(keywords.map((k, i) => [lowerKeywords[i], k]));
+    const notDelimiterRegex = /[a-z0-9가-힣]/;
+
     for (const msg of analysis.messages) {
-      const lowerMessage = msg.message.toLowerCase()
+      const userStats = stats.get(msg.sender);
+      if (!userStats) continue;
       
-      for (const keyword of keywords) {
-        const lowerKeyword = keyword.toLowerCase()
-        if (!keywordSet.has(lowerKeyword)) continue
-        
-        const count = (lowerMessage.match(new RegExp(lowerKeyword, 'g')) || []).length
+      const lowerMessage = msg.message.toLowerCase();
+
+      for (const lowerKeyword of lowerKeywords) {
+        let count = 0;
+        let lastIndex = -1;
+        while ((lastIndex = lowerMessage.indexOf(lowerKeyword, lastIndex + 1)) !== -1) {
+            const prevChar = lowerMessage[lastIndex - 1];
+            const nextChar = lowerMessage[lastIndex + lowerKeyword.length];
+
+            const isPrevCharDelimiter = !prevChar || !notDelimiterRegex.test(prevChar);
+            const isNextCharDelimiter = !nextChar || !notDelimiterRegex.test(nextChar);
+
+            if (isPrevCharDelimiter && isNextCharDelimiter) {
+                count++;
+            }
+        }
+
         if (count > 0) {
-          if (!stats.has(msg.sender)) {
-            stats.set(msg.sender, new Map())
-          }
-          const userStats = stats.get(msg.sender)!
-          userStats.set(keyword, (userStats.get(keyword) || 0) + count)
+          const originalKeyword = keywordMap.get(lowerKeyword)!;
+          userStats.set(originalKeyword, (userStats.get(originalKeyword) || 0) + count);
         }
       }
     }
-    
-    return stats
-  }, [keywords, analysis.messages])
+
+    return stats;
+  }, [keywords, analysis.messages, analysis.users]);
   
   // 선택된 키워드가 포함된 메시지 필터링
   const filteredMessages = useMemo(() => {
-    if (!selectedKeyword) return []
+    if (!selectedKeyword) return [];
     
-    const lowerKeyword = selectedKeyword.toLowerCase()
+    const lowerKeyword = selectedKeyword.toLowerCase();
+    const notDelimiterRegex = /[a-z0-9가-힣]/;
     
     return analysis.messages.filter(msg => {
-      // 사용자 필터가 있으면 해당 사용자만
-      if (selectedUser && msg.sender !== selectedUser) return false
+      if (selectedUser && msg.sender !== selectedUser) return false;
       
-      return msg.message.toLowerCase().includes(lowerKeyword)
-    })
-  }, [selectedKeyword, selectedUser, analysis.messages])
+      const lowerMessage = msg.message.toLowerCase();
+      let lastIndex = -1;
+
+      while ((lastIndex = lowerMessage.indexOf(lowerKeyword, lastIndex + 1)) !== -1) {
+          const prevChar = lowerMessage[lastIndex - 1];
+          const nextChar = lowerMessage[lastIndex + lowerKeyword.length];
+
+          const isPrevCharDelimiter = !prevChar || !notDelimiterRegex.test(prevChar);
+          const isNextCharDelimiter = !nextChar || !notDelimiterRegex.test(nextChar);
+
+          if (isPrevCharDelimiter && isNextCharDelimiter) {
+              return true; // Found a whole word match
+          }
+      }
+      return false;
+    });
+  }, [selectedKeyword, selectedUser, analysis.messages]);
   
   // best practice: rerender-functional-setstate - 함수형 업데이트로 안정적인 콜백
   const handleAddKeyword = () => {
@@ -125,6 +162,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   }
   
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter') {
       handleAddKeyword()
     }
@@ -140,73 +178,38 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedUser(null)
   }
   
-  const handleUserSummaryClick = async (user: string) => {
-    setSummaryUser(user);
-    setSummaryModalOpen(true);
+  // 사용자 카드 클릭 시 단어 분석 실행
+  const handleUserCardClick = (user: string) => {
+    const userMessages = analysis.messages.filter((msg) => msg.sender === user);
+    
+    const wordCounts = new Map<string, number>();
 
-    // 1. 캐시 확인: 캐시된 내용이 있으면 즉시 보여주고 종료
-    if (summaryCache[user]) {
-      setSummaryContent(summaryCache[user]);
-      setSummaryLoading(false);
-      return;
+    for (const msg of userMessages) {
+      // 1. 단어로 분리 (공백, 구두점 기준)
+      const words = msg.message.toLowerCase().split(/[\s,.\-!?~"“”…]+/);
+      
+      for (const word of words) {
+        if (word && !stopwords.has(word)) {
+          // 2. 불용어 제외하고 단어 카운트
+          wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+        }
+      }
     }
 
-    // 2. API 호출 시작: 로딩 상태 활성화
-    setSummaryLoading(true);
-    setSummaryContent(null);
+    // 3. 가장 많이 사용된 단어 5개 추출
+    const sortedWords = Array.from(wordCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const topWords = sortedWords.slice(0, 5).map(([word, count]) => ({ word, count }));
 
-    // 모든 메시지를 하나의 텍스트로 합치기
-    const userMessagesText = analysis.messages
-      .filter((msg) => msg.sender === user)
-      .map((msg) => `[${msg.timestamp}] ${msg.message}`)
-      .join('\n');
-
-    const messages = [
-      {
-        role: 'user' as const,
-        content: userMessagesText,
-      }
-    ];
-
-    try {
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ messages }),
-      });
-
-      if (!response.ok) {
-        throw new Error('서버 응답 오류');
-      }
-
-      // 3. JSON 응답 처리
-      const data = await response.json();
-      const summary = data.text || '요약 내용이 없습니다.';
-      
-      setSummaryContent(summary);
-      
-      // 4. 캐시 저장
-      setSummaryCache(prev => ({ ...prev, [user]: summary }));
-
-    } catch (error) {
-      console.error(error);
-      const errorMessage = '요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.';
-      setSummaryContent(errorMessage);
-      // 실패한 결과는 캐시하지 않음
-    } finally {
-      // 5. 로딩 종료
-      setSummaryLoading(false);
-    }
+    setUserAnalysisResult({ topWords });
+    setAnalysisUser(user);
+    setAnalysisModalOpen(true);
   };
 
-  const handleCloseSummaryModal = () => {
-    setSummaryModalOpen(false);
-    // 애니메이션을 위해 약간의 딜레이 후 상태 초기화
+  const handleCloseAnalysisModal = () => {
+    setAnalysisModalOpen(false);
     setTimeout(() => {
-      setSummaryUser(null);
-      setSummaryContent(null);
+      setAnalysisUser(null);
+      setUserAnalysisResult(null);
     }, 300);
   };
 
@@ -244,14 +247,14 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-purple-500/20 p-5 sm:p-6 border border-purple-500/30">
         <h2 className="text-xl sm:text-2xl font-bold text-pink-400 mb-4 sm:mb-5 flex items-center gap-2">
           <span>💖</span>
-          <span>우리의 대화 요약</span>
+          <span>대화 요약</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {Array.from(analysis.stats.messagesByUser.entries()).map(([user, count]) => (
             <div
               key={user}
               className="cursor-pointer"
-              onClick={() => handleUserSummaryClick(user)}
+              onClick={() => handleUserCardClick(user)}
             >
               <UserStatsCard 
                 user={user}
@@ -263,11 +266,11 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         </div>
       </div>
       
-      {/* 키워드 분석 */}
+      {/* 키워드 검색 */}
       <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
         <h2 className="text-xl sm:text-2xl font-bold text-purple-400 mb-4 sm:mb-5 flex items-center gap-2">
           <span>💗</span>
-          <span>키워드 분석</span>
+          <span>키워드 검색</span>
         </h2>
         
         {/* 키워드 입력 */}
@@ -276,7 +279,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             type="text"
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             placeholder="키워드 입력"
             className="flex-1 px-4 py-3 sm:py-3.5 bg-gray-800 border-2 border-pink-500 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 text-sm sm:text-base placeholder-gray-500 text-white"
           />
@@ -405,8 +408,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                       <span className="text-[10px] sm:text-xs text-gray-500">{msg.timestamp}</span>
                     </div>
                     <p className="text-gray-300 whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed">
-                      {/* 키워드 하이라이트 */}
-                      {msg.message.split(new RegExp(`(${selectedKeyword})`, 'gi')).map((part, i) => (
+                      {/* 키워드 하이라이트 (단어 단위) */}
+                      {msg.message.split(/([\s,.\-!?~"“”…]+)/).map((part, i) => (
                         part.toLowerCase() === selectedKeyword.toLowerCase() ? (
                           <mark key={i} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold px-1.5 py-0.5 rounded">
                             {part}
@@ -439,14 +442,14 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         </div>
       )}
 
-      {/* AI 요약 모달 */}
-      <SummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={handleCloseSummaryModal}
-        summary={summaryContent}
-        isLoading={isSummaryLoading}
-        user={summaryUser || ''}
+      {/* 단어 사용 분석 모달 */}
+      <UserAnalysisModal
+        isOpen={isAnalysisModalOpen}
+        onClose={handleCloseAnalysisModal}
+        user={analysisUser}
+        analysis={userAnalysisResult}
       />
     </div>
   )
 }
+

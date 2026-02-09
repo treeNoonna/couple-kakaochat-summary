@@ -22,7 +22,7 @@ export default function App() {
       <footer className="mt-12 text-center text-pink-400 text-sm font-medium">
         <p className="flex items-center justify-center gap-2">
           <span>💕</span>
-          <span>카카오톡 대화 분석기</span>
+          <span>카카오톡 대화 요약</span>
           <span>💕</span>
         </p>
         <p className="text-xs text-pink-300 mt-2">Made with Love</p>

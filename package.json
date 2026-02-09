@@ -9,10 +9,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@types/node": "^25.2.0",
+    "@types/node": "^18.19.130",
     "@types/react": "^19.2.11",
     "@types/react-dom": "^19.2.3",
-    "@vercel/node": "^5.5.30",
+    "@types/recharts": "^1.8.29",
+    "@vercel/node": "^5.5.33",
     "@vitejs/plugin-react": "^4.3.1",
     "ai": "^6.0.77",
     "autoprefixer": "^10.4.24",
@@ -29,6 +30,7 @@
     "ollama": "^0.6.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0"
   }
 }
