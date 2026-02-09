@@ -329,6 +329,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     if (!analysisRef.current) return;
     
     setIsDownloading(true);
+    analysisRef.current.classList.add('capture-solid-text');
     
     try {
       // 키워드 검색 섹션을 제외하고 캡처
@@ -401,6 +402,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       console.error('이미지 저장 실패:', error);
       alert('이미지 저장에 실패했습니다. 다시 시도해주세요.');
     } finally {
+      if (analysisRef.current) {
+        analysisRef.current.classList.remove('capture-solid-text');
+      }
       setIsDownloading(false);
     }
   }
@@ -418,21 +422,21 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             <button
               onClick={handleDownloadImage}
               disabled={isDownloading}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="flex items-center justify-center flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {isDownloading ? '저장 중...' : (
                 <>
-                  <span className="hidden sm:inline">이미지 저장 📸</span>
-                  <span className="sm:hidden">저장 📸</span>
+                  <span className="hidden sm:inline">이미지 저장 <span className="capture-hide-emoji">📸</span></span>
+                  <span className="sm:hidden">저장 <span className="capture-hide-emoji">📸</span></span>
                 </>
               )}
             </button>
             <button
               onClick={onReset}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
+              className="flex items-center justify-center flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
             >
-              <span className="hidden sm:inline">다시 분석 🔄</span>
-              <span className="sm:hidden">다시 🔄</span>
+              <span className="hidden sm:inline">다시 분석 <span className="capture-hide-emoji">🔄</span></span>
+              <span className="sm:hidden">다시 <span className="capture-hide-emoji">🔄</span></span>
             </button>
           </div>
         </div>
@@ -648,7 +652,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           <div className="text-center py-10 sm:py-12">
             <div className="text-5xl sm:text-6xl mb-3">💭</div>
             <p className="text-gray-400 font-medium text-sm sm:text-base">
-              키워드를 추가해서 분석을 시작해보세요
+              키워드를 검색해서 메세지를 찾아보세요
             </p>
           </div>
         )}

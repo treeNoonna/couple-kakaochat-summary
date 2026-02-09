@@ -52,3 +52,12 @@ body {
     transform: scale(1.05);
   }
 }
+
+.capture-solid-text .bg-clip-text {
+  background-image: none !important;
+  color: #F472B6 !important; /* Fallback color, text-pink-400 */
+}
+
+.capture-solid-text .capture-hide-emoji {
+  display: none !important;
+}

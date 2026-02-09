@@ -59,10 +59,10 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       <div className="text-center mb-8 sm:mb-10">
         <div className="text-6xl sm:text-7xl mb-4 animate-pulse-soft">💕</div>
         <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 drop-shadow-lg">
-          카카오톡 채팅 분석기
+          카카오톡 채팅 요약 
         </h1>
         <p className="text-pink-300 text-sm sm:text-base font-medium">
-          두 사람의 특별한 이야기를 분석해보세요 ✨
+          카카오톡 채팅 내역을 분석해보세요 ✨
         </p>
       </div>
       
