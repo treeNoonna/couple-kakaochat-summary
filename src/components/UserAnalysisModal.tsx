@@ -1,8 +1,9 @@
 import React from 'react';
-import { PieChart, Pie, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 
 export interface UserAnalysis {
   topWords: { word: string; count: number }[];
+  dailyMessages?: { date: string; count: number }[]; // 이제 주별 데이터를 담음
 }
 
 interface UserAnalysisModalProps {
@@ -31,7 +32,7 @@ const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, 
       onClick={onClose}
     >
       <div 
-        className="bg-gray-800 bg-opacity-80 backdrop-blur-lg rounded-2xl shadow-xl shadow-purple-500/20 p-6 sm:p-8 border border-purple-500/30 w-full max-w-md"
+        className="bg-gray-800 bg-opacity-80 backdrop-blur-lg rounded-2xl shadow-xl shadow-purple-500/20 p-6 sm:p-8 border border-purple-500/30 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-2xl font-bold text-purple-400 mb-6 flex items-center gap-3">
@@ -39,6 +40,7 @@ const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, 
         </h3>
         
         <div className="space-y-6">
+          {/* 자주 사용한 단어 */}
           <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
             <h4 className="text-lg font-bold text-gray-200 mb-4 text-center">자주 사용한 단어 TOP 10</h4>
             <div style={{ width: '100%', height: 300 }}>
@@ -68,6 +70,47 @@ const UserAnalysisModal: React.FC<UserAnalysisModalProps> = ({ isOpen, onClose, 
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* 주별 메시지 */}
+          {analysis.dailyMessages && analysis.dailyMessages.length > 0 && (
+            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+              <h4 className="text-lg font-bold text-gray-200 mb-4 text-center">주별 메시지 수</h4>
+              <div style={{ width: '100%', height: 300 }}>
+                <ResponsiveContainer>
+                  <BarChart data={analysis.dailyMessages}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#BBB"
+                      tick={{ fill: '#BBB', fontSize: 12 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis 
+                      stroke="#BBB"
+                      tick={{ fill: '#BBB' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(30, 30, 30, 0.8)', 
+                        borderColor: '#555',
+                        borderRadius: '10px',
+                        color: '#fff'
+                      }}
+                      labelStyle={{ color: '#BB86FC' }}
+                    />
+                    <Bar 
+                      dataKey="count" 
+                      fill="#BB86FC" 
+                      name="메시지 수"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
 
         <button

@@ -1,19 +1,21 @@
 import { useState, useMemo, memo } from 'react'
 import type { AnalysisResult } from '../types/chat'
 import { calculatePercentage } from '../utils/parser'
-import UserAnalysisModal from './UserAnalysisModal' // AI 요약 모달 대신 단어 분석 모달 임포트
-import type { UserAnalysis } from './UserAnalysisModal'
+import { PieChart, Pie, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
 
 interface ChatAnalysisProps {
   analysis: AnalysisResult
   onReset: () => void
 }
 
+const COLORS = ['#BB86FC', '#CF6679', '#03DAC6', '#FFD700', '#F2B880', '#FF6B9D', '#4ECDC4', '#FFA07A', '#98D8C8', '#F7DC6F'];
+const USER_COLORS = ['#BB86FC', '#CF6679']; // 두 사용자용 색상
+
 // 한국어 불용어 목록
 const stopwords = new Set([
-  // 한국어 조사, 대명사, 동사/형용사 어미 등
-  '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ',
-  '사진', '이모티콘',
+  // photo, emoji, 이모티콘 제외
+  '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ', "ㅠㅠㅠ"
+  ,'사진', '이모티콘',
 ]);
 
 
@@ -55,9 +57,6 @@ const UserStatsCard = memo(function UserStatsCard({
           </div>
         </div>
       </div>
-      <div className="text-center text-sm text-pink-400/70 mt-4 font-medium">
-        클릭해서 자주 사용한 단어 확인 📊
-      </div>
     </div>
   )
 })
@@ -68,10 +67,173 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
   
-  // 단어 분석 모달 상태
-  const [isAnalysisModalOpen, setAnalysisModalOpen] = useState(false);
-  const [analysisUser, setAnalysisUser] = useState<string | null>(null);
-  const [userAnalysisResult, setUserAnalysisResult] = useState<UserAnalysis | null>(null);
+  // 평균 답장 속도 계산
+  const avgResponseTime = useMemo(() => {
+    const parseTimestamp = (timestamp: string): Date | null => {
+      // "2025. 11. 9. 오후 11:40" 형식 파싱
+      const match = timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(오전|오후)\s*(\d{1,2}):(\d{2})/);
+      if (!match) return null;
+      
+      const year = parseInt(match[1]);
+      const month = parseInt(match[2]) - 1;
+      const day = parseInt(match[3]);
+      const isPM = match[4] === '오후';
+      let hour = parseInt(match[5]);
+      const minute = parseInt(match[6]);
+      
+      // 오후/오전 처리
+      if (isPM && hour !== 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+      
+      return new Date(year, month, day, hour, minute);
+    };
+    
+    const responseTimes = new Map<string, number[]>();
+    analysis.users.forEach(user => responseTimes.set(user, []));
+    
+    for (let i = 1; i < analysis.messages.length; i++) {
+      const prevMsg = analysis.messages[i - 1];
+      const currMsg = analysis.messages[i];
+      
+      // 발신자가 바뀌었을 때만 답장으로 간주
+      if (prevMsg.sender !== currMsg.sender) {
+        const prevTime = parseTimestamp(prevMsg.timestamp);
+        const currTime = parseTimestamp(currMsg.timestamp);
+        
+        if (prevTime && currTime) {
+          const diffMinutes = (currTime.getTime() - prevTime.getTime()) / (1000 * 60);
+          
+          // 24시간(1440분) 이내의 답장만 계산 (너무 긴 시간은 제외)
+          if (diffMinutes > 0 && diffMinutes <= 1440) {
+            responseTimes.get(currMsg.sender)?.push(diffMinutes);
+          }
+        }
+      }
+    }
+    
+    // 평균 계산
+    const result = new Map<string, string>();
+    analysis.users.forEach(user => {
+      const times = responseTimes.get(user) || [];
+      if (times.length > 0) {
+        const avgMinutes = times.reduce((a, b) => a + b, 0) / times.length;
+        
+        if (avgMinutes < 60) {
+          result.set(user, `${Math.round(avgMinutes)}분`);
+        } else if (avgMinutes < 1440) {
+          const hours = Math.floor(avgMinutes / 60);
+          const mins = Math.round(avgMinutes % 60);
+          result.set(user, `${hours}시간 ${mins}분`);
+        } else {
+          result.set(user, '1일 이상');
+        }
+      } else {
+        result.set(user, '데이터 없음');
+      }
+    });
+    
+    return result;
+  }, [analysis.messages, analysis.users]);
+  
+  // 각 사용자별 자주 사용한 단어 분석
+  const userWordAnalysis = useMemo(() => {
+    const result = new Map<string, { word: string; count: number }[]>();
+    
+    analysis.users.forEach(user => {
+      const userMessages = analysis.messages.filter(msg => msg.sender === user);
+      const wordCounts = new Map<string, number>();
+      
+      for (const msg of userMessages) {
+        const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
+        
+        for (const word of words) {
+          if (word && word.length > 1 && !stopwords.has(word)) {
+            wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+          }
+        }
+      }
+      
+      const sortedWords = Array.from(wordCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([word, count]) => ({ word, count }));
+      
+      result.set(user, sortedWords);
+    });
+    
+    return result;
+  }, [analysis.messages, analysis.users]);
+  
+  // 주별 메시지 수 분석
+  const weeklyMessageData = useMemo(() => {
+    const getWeekStartDate = (date: Date): string => {
+      const day = date.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(date);
+      monday.setDate(date.getDate() + diff);
+      
+      const year = monday.getFullYear();
+      const month = String(monday.getMonth() + 1).padStart(2, '0');
+      const day2 = String(monday.getDate()).padStart(2, '0');
+      
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const endYear = sunday.getFullYear();
+      const endMonth = String(sunday.getMonth() + 1).padStart(2, '0');
+      const endDay = String(sunday.getDate()).padStart(2, '0');
+      
+      // 연도가 다른 경우와 같은 경우 구분
+      if (year === endYear) {
+        return `${year}.${month}.${day2}~${endMonth}.${endDay}`;
+      } else {
+        return `${year}.${month}.${day2}~${endYear}.${endMonth}.${endDay}`;
+      }
+    };
+    
+    const weeklyData = new Map<string, Map<string, number>>();
+    
+    for (const msg of analysis.messages) {
+      const dateMatch = msg.timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+      if (dateMatch) {
+        const year = parseInt(dateMatch[1]);
+        const month = parseInt(dateMatch[2]) - 1;
+        const day = parseInt(dateMatch[3]);
+        const msgDate = new Date(year, month, day);
+        
+        const weekKey = getWeekStartDate(msgDate);
+        
+        if (!weeklyData.has(weekKey)) {
+          weeklyData.set(weekKey, new Map());
+        }
+        
+        const weekData = weeklyData.get(weekKey)!;
+        weekData.set(msg.sender, (weekData.get(msg.sender) || 0) + 1);
+      }
+    }
+    
+    const chartData = Array.from(weeklyData.entries())
+      .map(([week, userData]) => {
+        const dataPoint: any = { week };
+        analysis.users.forEach(user => {
+          dataPoint[user] = userData.get(user) || 0;
+        });
+        return dataPoint;
+      })
+      .sort((a, b) => {
+        // 연도.월.일 형식을 파싱하여 정렬
+        const parseDate = (weekStr: string) => {
+          const startDate = weekStr.split('~')[0];
+          const parts = startDate.split('.');
+          return parts.join(''); // "2025.11.04" -> "20251104"
+        };
+        
+        const dateA = parseDate(a.week);
+        const dateB = parseDate(b.week);
+        return dateA.localeCompare(dateB);
+      });
+    
+    return chartData;
+  }, [analysis.messages, analysis.users]);
 
   
   // best practice: rerender-derived-state - 파생 상태 계산
@@ -84,7 +246,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     const keywordSet = new Set(keywords.map(k => k.toLowerCase()))
     
     for (const msg of analysis.messages) {
-      const lowerMessage = msg.message.toLowerCase()
+      // 괄호 안의 내용(이모티콘) 제거
+      const messageWithoutEmoticons = msg.message.replace(/\([^)]*\)/g, '')
+      const lowerMessage = messageWithoutEmoticons.toLowerCase()
       
       for (const keyword of keywords) {
         const lowerKeyword = keyword.toLowerCase()
@@ -114,7 +278,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       // 사용자 필터가 있으면 해당 사용자만
       if (selectedUser && msg.sender !== selectedUser) return false
       
-      return msg.message.toLowerCase().includes(lowerKeyword)
+      // 괄호 안의 내용(이모티콘) 제거 후 검색
+      const messageWithoutEmoticons = msg.message.replace(/\([^)]*\)/g, '')
+      return messageWithoutEmoticons.toLowerCase().includes(lowerKeyword)
     })
   }, [selectedKeyword, selectedUser, analysis.messages]);
   
@@ -147,41 +313,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedKeyword(null)
     setSelectedUser(null)
   }
-  
-  // 사용자 카드 클릭 시 단어 분석 실행
-  const handleUserCardClick = (user: string) => {
-    const userMessages = analysis.messages.filter((msg) => msg.sender === user);
-    
-    const wordCounts = new Map<string, number>();
-
-    for (const msg of userMessages) {
-      // 1. 단어로 분리 (공백, 구두점 기준)
-      const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
-      
-      for (const word of words) {
-        // 2. 불용어 제외하고, 한글자 단어 제외하고 카운트
-        if (word && word.length > 1 && !stopwords.has(word)) {
-          wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
-        }
-      }
-    }
-
-    // 3. 가장 많이 사용된 단어 10개 추출
-    const sortedWords = Array.from(wordCounts.entries()).sort((a, b) => b[1] - a[1]);
-    const topWords = sortedWords.slice(0, 10).map(([word, count]) => ({ word, count }));
-
-    setUserAnalysisResult({ topWords });
-    setAnalysisUser(user);
-    setAnalysisModalOpen(true);
-  };
-
-  const handleCloseAnalysisModal = () => {
-    setAnalysisModalOpen(false);
-    setTimeout(() => {
-      setAnalysisUser(null);
-      setUserAnalysisResult(null);
-    }, 300);
-  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -199,7 +330,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             다시 분석하기 🔄
           </button>
         </div>
-        <div className="space-y-2 text-sm sm:text-base">
+        <div className="space-y-2 text-sm sm:text-base mb-6">
           <p className="flex items-center gap-2">
             <span className="text-gray-400 font-medium">총 메시지:</span>
             <span className="font-bold text-xl sm:text-2xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
@@ -211,21 +342,11 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
             <span className="font-bold text-pink-400">{analysis.users.join(' & ')}</span>
           </p>
         </div>
-      </div>
-      
-      {/* 사용자별 통계 */}
-      <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-purple-500/20 p-5 sm:p-6 border border-purple-500/30">
-        <h2 className="text-xl sm:text-2xl font-bold text-pink-400 mb-4 sm:mb-5 flex items-center gap-2">
-          <span>💖</span>
-          <span>대화 요약</span>
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+        
+        {/* 사용자 카드 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 mb-6">
           {Array.from(analysis.stats.messagesByUser.entries()).map(([user, count]) => (
-            <div
-              key={user}
-              className="cursor-pointer"
-              onClick={() => handleUserCardClick(user)}
-            >
+            <div key={user}>
               <UserStatsCard 
                 user={user}
                 messageCount={count}
@@ -233,6 +354,123 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
               />
             </div>
           ))}
+        </div>
+        
+        {/* 평균 답장 속도 */}
+        <div className="mb-6">
+          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+            <span>⏱️</span>
+            <span>평균 답장 속도</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {analysis.users.map((user) => (
+              <div key={user} className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-300 font-medium">{user}님</span>
+                  <span className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                    {avgResponseTime.get(user)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* 자주 사용한 단어 */}
+        <div className="mb-6">
+          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+            <span>📊</span>
+            <span>자주 사용한 단어</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {analysis.users.map((user, index) => {
+              const topWords = userWordAnalysis.get(user) || [];
+              const chartData = topWords.map((item, idx) => ({
+                name: item.word,
+                value: item.count,
+                fill: COLORS[idx % COLORS.length]
+              }));
+              
+              return (
+                <div key={user} className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                  <h3 className="text-base font-bold text-pink-400 mb-4 text-center">{user}님</h3>
+                  <div style={{ width: '100%', height: 300 }}>
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(30, 30, 30, 0.9)',
+                            borderColor: '#555',
+                            borderRadius: '10px',
+                            color: '#fff'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* 주별 메시지 추이 */}
+        <div>
+          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+            <span>📈</span>
+            <span>주차별 메시지</span>
+          </h2>
+          <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+            <div style={{ width: '100%', height: 400 }}>
+              <ResponsiveContainer>
+                <LineChart data={weeklyMessageData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis
+                    dataKey="week"
+                    stroke="#BBB"
+                    tick={{ fill: '#BBB', fontSize: 11 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis
+                    stroke="#BBB"
+                    tick={{ fill: '#BBB' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(30, 30, 30, 0.9)',
+                      borderColor: '#555',
+                      borderRadius: '10px',
+                      color: '#fff'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ color: '#BBB' }} />
+                  {analysis.users.map((user, index) => (
+                    <Line
+                      key={user}
+                      type="monotone"
+                      dataKey={user}
+                      stroke={USER_COLORS[index % USER_COLORS.length]}
+                      strokeWidth={3}
+                      dot={{ r: 5 }}
+                      activeDot={{ r: 7 }}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -411,14 +649,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           </div>
         </div>
       )}
-
-      {/* 단어 사용 분석 모달 */}
-      <UserAnalysisModal
-        isOpen={isAnalysisModalOpen}
-        onClose={handleCloseAnalysisModal}
-        user={analysisUser}
-        analysis={userAnalysisResult}
-      />
     </div>
   )
 }
