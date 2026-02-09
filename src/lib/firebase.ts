@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app'
+/* import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
 
 // Firebase 설정
@@ -17,3 +17,4 @@ const app = initializeApp(firebaseConfig)
 
 // Firestore 인스턴스
 export const db = getFirestore(app)
+ */

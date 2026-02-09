@@ -1,11 +1,11 @@
-import { collection, addDoc, getDoc, doc } from 'firebase/firestore'
+/* import { collection, addDoc, getDoc, doc } from 'firebase/firestore'
 import { db } from './firebase'
 import type { AnalysisResult } from '../types/chat'
 
 // 분석 결과를 저장하고 공유 ID 생성
 export async function saveAnalysisForSharing(analysis: AnalysisResult): Promise<string> {
   try {
-    // Firestore에 데이터 저장
+    // Firestore에 데이터 A
     const docRef = await addDoc(collection(db, 'sharedAnalysis'), {
       analysis: {
         stats: {
@@ -72,3 +72,4 @@ export async function loadSharedAnalysis(shareId: string): Promise<AnalysisResul
     return null
   }
 }
+ */
