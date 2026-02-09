@@ -1,7 +1,8 @@
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, memo, useRef } from 'react'
 import type { AnalysisResult } from '../types/chat'
 import { calculatePercentage } from '../utils/parser'
 import { PieChart, Pie, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
+import html2canvas from 'html2canvas'
 
 interface ChatAnalysisProps {
   analysis: AnalysisResult
@@ -23,11 +24,13 @@ const stopwords = new Set([
 const UserStatsCard = memo(function UserStatsCard({
   user,
   messageCount,
-  totalMessages
+  totalMessages, 
+  avgResponseTime
 }: {
   user: string
   messageCount: number
-  totalMessages: number
+  totalMessages: number, 
+  avgResponseTime: string
 }) {
   const percentage = calculatePercentage(messageCount, totalMessages)
   
@@ -56,6 +59,12 @@ const UserStatsCard = memo(function UserStatsCard({
             />
           </div>
         </div>
+        <div className="mt-4">
+        <div className="flex justify-between text-xs sm:text-sm text-gray-400 mb-2 font-medium">
+            <span>평균 답장 속도</span>
+            <span className="font-bold text-pink-400">{avgResponseTime}</span>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -66,6 +75,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [keywords, setKeywords] = useState<string[]>([])
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
+  const analysisRef = useRef<HTMLDivElement>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
   
   // 평균 답장 속도 계산
   const avgResponseTime = useMemo(() => {
@@ -313,22 +324,117 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedKeyword(null)
     setSelectedUser(null)
   }
+  
+  const handleDownloadImage = async () => {
+    if (!analysisRef.current) return;
+    
+    setIsDownloading(true);
+    
+    try {
+      // 키워드 검색 섹션을 제외하고 캡처
+      const keywordSection = document.querySelector('[data-exclude-capture]');
+      const originalDisplay = keywordSection ? (keywordSection as HTMLElement).style.display : '';
+      if (keywordSection) {
+        (keywordSection as HTMLElement).style.display = 'none';
+      }
+      
+      // 모바일 여부 확인
+      const isMobile = window.innerWidth < 768;
+      
+      const canvas = await html2canvas(analysisRef.current, {
+        backgroundColor: '#0f0f0f',
+        scale: isMobile ? 1.5 : 2, // 모바일에서는 scale 낮춤 (메모리 절약)
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+      });
+      
+      // 원래 상태로 복원
+      if (keywordSection) {
+        (keywordSection as HTMLElement).style.display = originalDisplay;
+      }
+      
+      // Blob 생성
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/png', 0.95);
+      });
+      
+      const date = new Date().toISOString().split('T')[0];
+      const fileName = `카카오톡_대화분석_${date}.png`;
+      
+      // 모바일에서 Web Share API 사용 가능한 경우
+      if (isMobile && navigator.share && navigator.canShare) {
+        try {
+          const file = new File([blob], fileName, { type: 'image/png' });
+          const shareData = {
+            files: [file],
+            title: '카카오톡 대화 분석',
+            text: '우리의 대화 분석 결과입니다!'
+          };
+          
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+            return; // 공유 성공 시 다운로드 스킵
+          }
+        } catch (err: any) {
+          // 공유 취소하거나 실패하면 다운로드로 fallback
+          if (err.name === 'AbortError') {
+            console.log('공유가 취소되었습니다.');
+            return;
+          }
+        }
+      }
+      
+      // 일반 다운로드 (데스크톱 또는 공유 불가능한 경우)
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      // 모바일에서 성공 피드백
+      if (isMobile) {
+        alert('이미지가 저장되었습니다! 📸');
+      }
+    } catch (error) {
+      console.error('이미지 저장 실패:', error);
+      alert('이미지 저장에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* 헤더 */}
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border-2 border-pink-500">
+      <div ref={analysisRef} className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border-2 border-pink-500">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
             <span>💕</span>
             <span>분석 결과</span>
           </h1>
-          <button
-            onClick={onReset}
-            className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base"
-          >
-            다시 분석하기 🔄
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleDownloadImage}
+              disabled={isDownloading}
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {isDownloading ? '저장 중...' : (
+                <>
+                  <span className="hidden sm:inline">이미지 저장 📸</span>
+                  <span className="sm:hidden">저장 📸</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={onReset}
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
+            >
+              <span className="hidden sm:inline">다시 분석 🔄</span>
+              <span className="sm:hidden">다시 🔄</span>
+            </button>
+          </div>
         </div>
         <div className="space-y-2 text-sm sm:text-base mb-6">
           <p className="flex items-center gap-2">
@@ -351,30 +457,12 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                 user={user}
                 messageCount={count}
                 totalMessages={analysis.stats.totalMessages}
+                avgResponseTime={avgResponseTime.get(user) || '데이터 없음'}
               />
             </div>
           ))}
         </div>
         
-        {/* 평균 답장 속도 */}
-        <div className="mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-            <span>⏱️</span>
-            <span>평균 답장 속도</span>
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {analysis.users.map((user) => (
-              <div key={user} className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-300 font-medium">{user}님</span>
-                  <span className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
-                    {avgResponseTime.get(user)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
         
         {/* 자주 사용한 단어 */}
         <div className="mb-6">
@@ -475,7 +563,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       </div>
       
       {/* 키워드 검색 */}
-      <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
+      <div data-exclude-capture className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
         <h2 className="text-xl sm:text-2xl font-bold text-purple-400 mb-4 sm:mb-5 flex items-center gap-2">
           <span>💗</span>
           <span>키워드 검색</span>
