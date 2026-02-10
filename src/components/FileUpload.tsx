@@ -6,43 +6,64 @@ interface FileUploadProps {
 }
 
 export default function FileUpload({ onFileUpload }: FileUploadProps) {
+  const readTxtFile = useCallback((file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.onerror = reject
+      reader.readAsText(file, 'UTF-8')
+    })
+  }, [])
+
+  const readZipFile = useCallback(async (file: File) => {
+    const zipData = await file.arrayBuffer()
+    const zip = await JSZip.loadAsync(zipData)
+    const txtEntries = Object.values(zip.files)
+      .filter(entry => !entry.dir && entry.name.toLowerCase().endsWith('.txt'))
+    
+    if (txtEntries.length === 0) {
+      throw new Error('zip 파일 안에 .txt 파일이 없습니다.')
+    }
+    
+    const fileContents = await Promise.all(
+      txtEntries.map(entry => entry.async('string'))
+    )
+    return fileContents.join('\n\n')
+  }, [])
+
   // best practice: rerender-functional-setstate - 안정적인 콜백
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     
-    // ZIP 파일 처리
-    if (file.name.toLowerCase().endsWith('.zip')) {
-      try {
-        const zip = new JSZip();
-        const contents = await zip.loadAsync(file);
-        const txtFiles = Object.values(contents.files).filter(f => f.name.toLowerCase().endsWith('.txt') && !f.dir);
-        
-        if (txtFiles.length === 0) {
-          alert('ZIP 파일 내에 .txt 파일이 없습니다.');
-          return;
-        }
-
-        const fileContents = await Promise.all(
-          txtFiles.map(f => f.async('string'))
-        );
-        
-        onFileUpload(fileContents.join('\n\n'));
-        return;
-      } catch (error) {
-        alert('ZIP 파일 압축 해제 중 오류가 발생했습니다.');
-        console.error(error);
-        return;
+    try {
+      const lowerName = file.name.toLowerCase()
+      
+      if (lowerName.endsWith('.zip')) {
+        alert('이 영역은 .txt 파일만 업로드할 수 있습니다.')
+        return
       }
-    }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const content = e.target?.result as string
+      const content = await readTxtFile(file)
       onFileUpload(content)
+    } catch (error) {
+      alert('파일 읽기 중 오류가 발생했습니다.')
+      console.error(error)
     }
-    reader.readAsText(file, 'UTF-8')
-  }, [onFileUpload])
+  }, [onFileUpload, readTxtFile])
+
+  const handleZipChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const combinedContent = await readZipFile(file)
+      onFileUpload(combinedContent)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'zip 파일 읽기 중 오류가 발생했습니다.')
+      console.error(error)
+    }
+  }, [onFileUpload, readZipFile])
   
   // 폴더 업로드 처리
   const handleFolderChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,7 +122,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
               채팅 파일 선택하기
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              카카오톡 .txt 또는 .zip 파일을 업로드해주세요
+              채팅 .txt 파일을 업로드해주세요
             </p>
           </div>
           <input
@@ -127,14 +148,14 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       
       {/* 폴더 업로드 */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
-        <label htmlFor="folder-upload" className="cursor-pointer block">
+        <div className="block">
           <div className="text-center">
             <div className="text-5xl sm:text-6xl mb-4">💖</div>
             <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
               모든 메시지 도큐멘트 한번에 업로드
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              폴더 안의 모든 .txt 파일을 분석해요
+              폴더 또는 .zip 안의 .txt 파일을 분석해요
             </p>
           </div>
           <input
@@ -147,18 +168,38 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
             onChange={handleFolderChange}
             className="hidden"
           />
-          <button 
-            type="button"
-            className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
-            onClick={() => document.getElementById('folder-upload')?.click()}
-          >
-            <span className="flex items-center justify-center gap-2">
-              <span>📂</span>
-              <span>폴더 선택하기</span>
-              <span>💗</span>
-            </span>
-          </button>
-        </label>
+          <input
+            id="zip-upload"
+            type="file"
+            accept=".zip"
+            onChange={handleZipChange}
+            className="hidden"
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button 
+              type="button"
+              className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
+              onClick={() => document.getElementById('folder-upload')?.click()}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <span>📂</span>
+                <span>폴더 선택하기</span>
+                <span>💗</span>
+              </span>
+            </button>
+            <button 
+              type="button"
+              className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
+              onClick={() => document.getElementById('zip-upload')?.click()}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <span>📦</span>
+                <span>zip 선택하기</span>
+                <span>💗</span>
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
       
       {/* 사용 방법 */}
