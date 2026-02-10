@@ -14,10 +14,13 @@ const USER_COLORS = ['#BB86FC', '#CF6679']; // 두 사용자용 색상
 
 // 한국어 불용어 목록
 const stopwords = new Set([
-  // photo, emoji, 이모티콘 제외
+  // photo, emoji, 'search' 제외
   '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ', "ㅠㅠㅠ"
-  ,'사진', '이모티콘',
+  ,'사진', '이모티콘', '샵검색'
 ]);
+
+// "ㅋㅋㅋㅋ", "ㅎㅎ", "ㅋㅎㅋㅋ" 처럼 ㅋ/ㅎ로만 구성된 토큰은 전부 불용어로 처리
+const laughTokenPattern = /^[ㅋㅎ]+$/;
 
 
 // best practice: rerender-memo - 메모이제이션으로 최적화
@@ -158,7 +161,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
         
         for (const word of words) {
-          if (word && word.length > 1 && !stopwords.has(word)) {
+          if (word && word.length > 1 && !stopwords.has(word) && !laughTokenPattern.test(word)) {
             wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
           }
         }
@@ -495,7 +498,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={60}
+                          outerRadius={80}
                           dataKey="value"
                           nameKey="name"
                           label={({ name, percent, cx, cy, midAngle, outerRadius, fill}) =>  {
@@ -537,7 +540,10 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
           <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
             <div style={{ width: '100%', height: 400 }}>
               <ResponsiveContainer>
-                <LineChart data={monthlyMessageData}>
+                <LineChart
+                  data={monthlyMessageData}
+                  margin={{ top: 10, right: 8, left: -10, bottom: 10 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                   <XAxis
                     dataKey="month"
@@ -550,7 +556,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                   <YAxis
                     stroke="#BBB"
                     tick={{ fill: '#BBB' }}
-                    fontSize='12px'
+                    fontSize="12px"
+                    width={38}
+                    tickMargin={4}
                   />
                   <Tooltip
                     contentStyle={{
@@ -568,9 +576,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                       type="monotone"
                       dataKey={user}
                       stroke={USER_COLORS[index % USER_COLORS.length]}
-                      strokeWidth={3}
-                      dot={{ r: 5 }}
-                      activeDot={{ r: 7 }}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 3 }}
                     />
                   ))}
                 </LineChart>
