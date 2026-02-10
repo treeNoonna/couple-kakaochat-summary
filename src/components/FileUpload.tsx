@@ -1,12 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 
 interface FileUploadProps {
   onFileUpload: (content: string) => void
 }
 
 export default function FileUpload({ onFileUpload }: FileUploadProps) {
-  const [isUploading, setIsUploading] = useState(false)
-
   const readTxtFile = useCallback((file: File) => {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
@@ -29,36 +27,6 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       console.error(error)
     }
   }, [onFileUpload, readTxtFile])
-
-  // zip 파일 서버 업로드 처리
-  const handleZipChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setIsUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await fetch('/api/unzip', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'zip 파일 처리에 실패했습니다.')
-      }
-
-      onFileUpload(data.content)
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'zip 파일 처리 중 오류가 발생했습니다.')
-      console.error(error)
-    } finally {
-      setIsUploading(false)
-    }
-  }, [onFileUpload])
 
   // 폴더 업로드 처리
   const handleFolderChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +85,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
               채팅 파일 선택하기
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              채팅 .txt 파일을 업로드해주세요
+              카카오톡 .txt 파일을 업로드해주세요
             </p>
           </div>
           <input
@@ -141,16 +109,16 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
         </label>
       </div>
       
-      {/* 폴더/zip 업로드 */}
+      {/* 폴더 업로드 */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
-        <div className="inline w-full mb-6 text-center">
-          <div className="text-center ">
+        <div className="block">
+          <div className="text-center">
             <div className="text-5xl sm:text-6xl mb-4">💖</div>
             <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
               모든 메시지 도큐멘트 한번에 업로드
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              폴더 또는 .zip 파일을 분석해요
+              폴더 안의 모든 .txt 파일을 분석해요
             </p>
           </div>
           <input
@@ -163,39 +131,17 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
             onChange={handleFolderChange}
             className="hidden"
           />
-          <input
-            id="zip-upload"
-            type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            onChange={handleZipChange}
-            className="hidden"
-            disabled={isUploading}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button 
-              type="button"
-              className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
-              onClick={() => document.getElementById('folder-upload')?.click()}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <span>📂</span>
-                <span>폴더 선택</span>
-                <span>💗</span>
-              </span>
-            </button>
-            <button 
-              type="button"
-              disabled={isUploading}
-              className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={() => document.getElementById('zip-upload')?.click()}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <span>🗜️</span>
-                <span>{isUploading ? '업로드 중...' : 'zip 선택'}</span>
-                <span>💗</span>
-              </span>
-            </button>
-          </div>
+          <button 
+            type="button"
+            className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
+            onClick={() => document.getElementById('folder-upload')?.click()}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <span>📂</span>
+              <span>폴더 선택하기</span>
+              <span>💗</span>
+            </span>
+          </button>
         </div>
       </div>
       
@@ -212,8 +158,8 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
-            <span>텍스트 파일(.txt)로 저장하기 or  <br/>
-            모든 메시지 도큐멘트 저장하고 압축해제</span>
+            <span>텍스트 파일(.txt)로 저장하기 or<br/>
+            모든 메시지 도큐멘트로 저장 후 압축 해제</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
