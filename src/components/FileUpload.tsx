@@ -15,8 +15,17 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
     })
   }, [])
 
+  const readArrayBuffer = useCallback((file: File) => {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as ArrayBuffer)
+      reader.onerror = reject
+      reader.readAsArrayBuffer(file)
+    })
+  }, [])
+
   const readZipFile = useCallback(async (file: File) => {
-    const zipData = await file.arrayBuffer()
+    const zipData = await readArrayBuffer(file)
     const zip = await JSZip.loadAsync(zipData)
     const txtEntries = Object.values(zip.files)
       .filter(entry => !entry.dir && entry.name.toLowerCase().endsWith('.txt'))
@@ -29,7 +38,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       txtEntries.map(entry => entry.async('string'))
     )
     return fileContents.join('\n\n')
-  }, [])
+  }, [readArrayBuffer])
 
   // best practice: rerender-functional-setstate - 안정적인 콜백
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,10 +46,11 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
     if (!file) return
     
     try {
-      if (file.name.toLowerCase().endsWith('.zip')) {
-        const combinedContent = await readZipFile(file)
-        onFileUpload(combinedContent)
-        return;
+      const lowerName = file.name.toLowerCase()
+      
+      if (lowerName.endsWith('.zip')) {
+        alert('이 영역은 .txt 파일만 업로드할 수 있습니다.')
+        return
       }
 
       const content = await readTxtFile(file)
@@ -170,7 +180,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           <input
             id="zip-upload"
             type="file"
-            accept=".zip"
+            accept=".zip,application/zip,application/x-zip-compressed"
             onChange={handleZipChange}
             className="hidden"
           />
@@ -215,11 +225,11 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
             <span>텍스트 파일(.txt)로 저장하기 or  <br/>
-            모든 메시지 도큐멘트로 저장하기</span>
+            모든 메시지 도큐멘트로  저장하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
-            <span>위 버튼을 눌러 파일 업로드하기</span>
+            <span>위 버튼을 눌러 업로드하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">4.</span>

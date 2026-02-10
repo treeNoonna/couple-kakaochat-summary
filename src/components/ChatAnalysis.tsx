@@ -290,6 +290,33 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedUser(null)
   }
   
+
+const wrapLabelText = (text: string, maxCharsPerLine: number) => {
+  const trimmed = text.trim();
+  if (!trimmed) return [''];
+  const words = trimmed.split(' ');
+  if (words.length === 1) {
+    const chunks: string[] = [];
+    for (let i = 0; i < trimmed.length; i += maxCharsPerLine) {
+      chunks.push(trimmed.slice(i, i + maxCharsPerLine));
+    }
+    return chunks;
+  }
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxCharsPerLine) {
+      if (current) lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+};
+
   const handleDownloadImage = async () => {
     if (!analysisRef.current) return;
     
@@ -497,19 +524,32 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                           data={chartData}
                           cx="50%"
                           cy="50%"
-                          labelLine={true}
+                          labelLine={false}
                           outerRadius={70}
                           dataKey="value"
                           nameKey="name"
-                          label={({ name, percent, cx, cy, midAngle, outerRadius, fill}) =>  {
+                          label={(props: any) =>  {
+                            const { name, percent, cx, cy, midAngle, outerRadius, fill, viewBox } = props;
                             const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 15;
+                            const radius = outerRadius + 12;
                             const x = (cx as number) + radius * Math.cos(-(midAngle || 0) * RADIAN);
                             const y = (cy as number) + radius * Math.sin(-(midAngle || 0) * RADIAN);
+                            const padding = 8;
+                            const maxX = (viewBox?.width ?? 0) - padding;
+                            const maxY = (viewBox?.height ?? 0) - padding;
+                            const safeX = Math.min(Math.max(x, padding), maxX > 0 ? maxX : x);
+                            const safeY = Math.min(Math.max(y, padding), maxY > 0 ? maxY : y);
+                            const nameLines = wrapLabelText(String(name ?? ''), 7);
+                            const percentLine = `${((percent || 0) * 100).toFixed(0)}%`;
+                            const lines = [...nameLines, percentLine];
+                            const lineHeight = 14;
+                            const startY = safeY - ((lines.length - 1) * lineHeight) / 2;
+
                             return (
-                              <text x={x} y={y} 
+                               <text x={safeX} y={startY} 
+
                                 fill={fill} 
-                                textAnchor={x > cx ? 'start' : 'end'} 
+                                textAnchor={safeX > cx ? 'start' : 'end'} 
                                 dominantBaseline="central" 
                                 style={{ 
                                   fontSize: '13px', 
@@ -517,7 +557,11 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                                   fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
                                 }}
                                 >
-                                { `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                                {lines.map((line, index) => (
+                                  <tspan key={index} x={safeX} dy={index === 0 ? 0 : lineHeight}>
+                                    {line}
+                                  </tspan>
+                                ))}
                               </text>
                             );
                           }}
@@ -569,7 +613,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                       fontSize: '12px'
                     }}
                   />
-                  <Legend wrapperStyle={{ color: '#BBB' }} />
+                  <Legend wrapperStyle={{ color: '#BBB' , fontSize: '12px'}} />
                   {analysis.users.map((user, index) => (
                     <Line
                       key={user}
