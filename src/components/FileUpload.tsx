@@ -143,8 +143,8 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       
       {/* 폴더/zip 업로드 */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
-        <div className="block">
-          <div className="text-center">
+        <div className="inline w-full mb-6 text-center">
+          <div className="text-center ">
             <div className="text-5xl sm:text-6xl mb-4">💖</div>
             <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
               모든 메시지 도큐멘트 한번에 업로드
