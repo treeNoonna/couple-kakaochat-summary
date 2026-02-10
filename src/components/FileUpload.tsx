@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import JSZip from 'jszip'
 
 interface FileUploadProps {
   onFileUpload: (content: string) => void
@@ -6,10 +7,35 @@ interface FileUploadProps {
 
 export default function FileUpload({ onFileUpload }: FileUploadProps) {
   // best practice: rerender-functional-setstate - 안정적인 콜백
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     
+    // ZIP 파일 처리
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      try {
+        const zip = new JSZip();
+        const contents = await zip.loadAsync(file);
+        const txtFiles = Object.values(contents.files).filter(f => f.name.toLowerCase().endsWith('.txt') && !f.dir);
+        
+        if (txtFiles.length === 0) {
+          alert('ZIP 파일 내에 .txt 파일이 없습니다.');
+          return;
+        }
+
+        const fileContents = await Promise.all(
+          txtFiles.map(f => f.async('string'))
+        );
+        
+        onFileUpload(fileContents.join('\n\n'));
+        return;
+      } catch (error) {
+        alert('ZIP 파일 압축 해제 중 오류가 발생했습니다.');
+        console.error(error);
+        return;
+      }
+    }
+
     const reader = new FileReader()
     reader.onload = (e) => {
       const content = e.target?.result as string
@@ -75,13 +101,13 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
               채팅 파일 선택하기
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              카카오톡 .txt 파일을 업로드해주세요
+              카카오톡 .txt 또는 .zip 파일을 업로드해주세요
             </p>
           </div>
           <input
             id="file-upload"
             type="file"
-            accept=".txt"
+            accept=".txt,.zip"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -148,7 +174,8 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
-            <span>텍스트 파일(.txt)로 저장하기 or 모든 메시지 도큐멘트로  저장하기</span>
+            <span>텍스트 파일(.txt)로 저장하기 or  <br/>
+            모든 메시지 도큐멘트로  저장하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
