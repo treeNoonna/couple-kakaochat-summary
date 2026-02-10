@@ -216,7 +216,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
             <span>텍스트 파일(.txt)로 저장하기 or  <br/>
-            모든 메시지 도큐멘트로  저장하기</span>
+            모든 메시지 도큐멘트로 저장하기</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
