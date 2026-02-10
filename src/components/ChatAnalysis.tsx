@@ -10,7 +10,7 @@ interface ChatAnalysisProps {
 }
 
 const COLORS = ['#BB86FC', '#CF6679', '#03DAC6', '#FFD700', '#F2B880', '#FF6B9D', '#4ECDC4', '#FFA07A', '#98D8C8', '#F7DC6F'];
-const USER_COLORS = ['#BB86FC', '#CF6679']; // 두 사용자용 색상
+const USER_COLORS = ['#BB86FC', '#CF6679' , '#03DAC6', '#FFD700', '#F2B800'];
 
 // 한국어 불용어 목록
 const stopwords = new Set([
