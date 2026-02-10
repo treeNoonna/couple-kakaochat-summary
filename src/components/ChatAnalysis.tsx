@@ -529,36 +529,39 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                           dataKey="value"
                           nameKey="name"
                           label={(props: any) =>  {
-                            const { name, percent, cx, cy, midAngle, outerRadius, fill, viewBox } = props;
+                            const { name, percent, cx, cy, midAngle, outerRadius, fill } = props;
                             const RADIAN = Math.PI / 180;
-                            const radius = outerRadius + 12;
-                            const x = (cx as number) + radius * Math.cos(-(midAngle || 0) * RADIAN);
-                            const y = (cy as number) + radius * Math.sin(-(midAngle || 0) * RADIAN);
-                            const padding = 8;
-                            const maxX = (viewBox?.width ?? 0) - padding;
-                            const maxY = (viewBox?.height ?? 0) - padding;
-                            const safeX = Math.min(Math.max(x, padding), maxX > 0 ? maxX : x);
-                            const safeY = Math.min(Math.max(y, padding), maxY > 0 ? maxY : y);
+                            const angle = midAngle || 0;
+                            // 아래쪽 라벨(90~270도)은 더 바깥으로 밀어냄
+                            const isBottom = angle > 45 && angle < 135;
+                            const radius = outerRadius + (isBottom ? 22 : 16);
+                            const x = (cx as number) + radius * Math.cos(-angle * RADIAN);
+                            const y = (cy as number) + radius * Math.sin(-angle * RADIAN);
+                            
                             const nameLines = wrapLabelText(String(name ?? ''), 7);
                             const percentLine = `${((percent || 0) * 100).toFixed(0)}%`;
                             const lines = [...nameLines, percentLine];
-                            const lineHeight = 14;
-                            const startY = safeY - ((lines.length - 1) * lineHeight) / 2;
+                            const lineHeight = 13;
+                            // 아래쪽 라벨은 위에서 시작, 위쪽 라벨은 중앙 기준
+                            const startY = isBottom 
+                              ? y 
+                              : y - ((lines.length - 1) * lineHeight) / 2;
 
                             return (
-                               <text x={safeX} y={startY} 
-
+                              <text 
+                                x={x} 
+                                y={startY} 
                                 fill={fill} 
-                                textAnchor={safeX > cx ? 'start' : 'end'} 
-                                dominantBaseline="central" 
+                                textAnchor={x > cx ? 'start' : 'end'} 
+                                dominantBaseline={isBottom ? 'hanging' : 'central'}
                                 style={{ 
-                                  fontSize: '13px', 
+                                  fontSize: '12px', 
                                   fontWeight: '500',
                                   fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
                                 }}
-                                >
+                              >
                                 {lines.map((line, index) => (
-                                  <tspan key={index} x={safeX} dy={index === 0 ? 0 : lineHeight}>
+                                  <tspan key={index} x={x} dy={index === 0 ? 0 : lineHeight}>
                                     {line}
                                   </tspan>
                                 ))}
