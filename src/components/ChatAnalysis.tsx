@@ -498,7 +498,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={80}
+                          outerRadius={70}
                           dataKey="value"
                           nameKey="name"
                           label={({ name, percent, cx, cy, midAngle, outerRadius, fill}) =>  {
@@ -512,7 +512,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
                                 textAnchor={x > cx ? 'start' : 'end'} 
                                 dominantBaseline="central" 
                                 style={{ 
-                                  fontSize: '12px', 
+                                  fontSize: '13px', 
                                   fontWeight: '500',
                                   fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
                                 }}

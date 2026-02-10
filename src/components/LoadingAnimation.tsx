@@ -38,10 +38,7 @@ export default function LoadingAnimation() {
         <p className="text-pink-300 text-sm sm:text-base font-medium mb-1">
           우리의 특별한 이야기를 정리하고 있어요 💖
         </p>
-        <p className="text-purple-300 text-sm sm:text-base font-medium">
-          정리하고 있어요 💕
-        </p>
-        
+                
         {/* 로딩 바 */}
         <div className="mt-6 w-full bg-gray-700 rounded-full h-3 overflow-hidden">
           <div className="h-full bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 rounded-full animate-loading-bar shadow-lg" />
