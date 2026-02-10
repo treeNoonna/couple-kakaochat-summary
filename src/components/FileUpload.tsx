@@ -190,7 +190,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
               onClick={() => document.getElementById('zip-upload')?.click()}
             >
               <span className="flex items-center justify-center gap-2">
-                <span>🗜️</span>
+                <span>📦</span>
                 <span>{isUploading ? '업로드 중...' : 'zip 선택'}</span>
                 <span>💗</span>
               </span>
