@@ -37,11 +37,10 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
     if (!file) return
     
     try {
-      const lowerName = file.name.toLowerCase()
-      
-      if (lowerName.endsWith('.zip')) {
-        alert('이 영역은 .txt 파일만 업로드할 수 있습니다.')
-        return
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        const combinedContent = await readZipFile(file)
+        onFileUpload(combinedContent)
+        return;
       }
 
       const content = await readTxtFile(file)
