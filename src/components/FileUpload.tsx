@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import JSZip from 'jszip'
 
 interface FileUploadProps {
   onFileUpload: (content: string) => void
@@ -14,19 +15,59 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
     })
   }, [])
 
+  // ZIP 파일 압축 해제 및 .txt 파일 추출
+  const readZipFile = useCallback(async (file: File) => {
+    try {
+      const zip = new JSZip()
+      const zipContent = await zip.loadAsync(file)
+      
+      // ZIP 내의 모든 .txt 파일 찾기
+      const txtFiles: JSZip.JSZipObject[] = []
+      zipContent.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && relativePath.toLowerCase().endsWith('.txt')) {
+          txtFiles.push(zipEntry)
+        }
+      })
+      
+      if (txtFiles.length === 0) {
+        throw new Error('ZIP 파일 내에 .txt 파일이 없습니다.')
+      }
+      
+      // 모든 .txt 파일의 내용 읽기
+      const fileContents = await Promise.all(
+        txtFiles.map(zipEntry => zipEntry.async('string'))
+      )
+      
+      // 모든 파일 내용을 합침
+      return fileContents.join('\n\n')
+    } catch (error) {
+      console.error('ZIP 파일 처리 오류:', error)
+      throw error
+    }
+  }, [])
+
   // best practice: rerender-functional-setstate - 안정적인 콜백
   const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
     
     try {
-      const content = await readTxtFile(file)
+      let content: string
+      
+      // ZIP 파일인지 확인
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        content = await readZipFile(file)
+      } else {
+        content = await readTxtFile(file)
+      }
+      
       onFileUpload(content)
     } catch (error) {
-      alert('파일 읽기 중 오류가 발생했습니다.')
+      const errorMessage = error instanceof Error ? error.message : '파일 읽기 중 오류가 발생했습니다.'
+      alert(errorMessage)
       console.error(error)
     }
-  }, [onFileUpload, readTxtFile])
+  }, [onFileUpload, readTxtFile, readZipFile])
 
   // 폴더 업로드 처리
   const handleFolderChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,13 +126,13 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
               채팅 파일 선택하기
             </p>
             <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              카카오톡 .txt 파일을 업로드해주세요
+              카카오톡 .txt 또는 .zip 파일을 업로드해주세요
             </p>
           </div>
           <input
             id="file-upload"
             type="file"
-            accept=".txt"
+            accept=".txt,.zip"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -159,7 +200,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">2.</span>
             <span>텍스트 파일(.txt)로 저장하기 or<br/>
-            모든 메시지 도큐멘트로 저장 후 압축 해제</span>
+            모든 메시지 도큐멘트로 저장</span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold min-w-[20px]">3.</span>
