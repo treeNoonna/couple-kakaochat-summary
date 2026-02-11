@@ -589,7 +589,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
               <ResponsiveContainer>
                 <LineChart
                   data={monthlyMessageData}
-                  margin={{ top: 10, right: 15 , left: 5, bottom: 10 }}
+                  margin={{ top: 10, right: 20 , left: 5, bottom: 10 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                   <XAxis

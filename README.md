@@ -18,16 +18,16 @@
 
 ## 💻 로컬 실행
 
-# 의존성 설치
+### 의존성 설치
 npm install
 
-# 개발 서버 실행
+### 개발 서버 실행
 npm run dev
 
-# vercel 개발서버 실행 
+### vercel 개발서버 실행 
 npx vercel dev
 
-# 프로덕션 빌드
+### 프로덕션 빌드
 npm run build
 
 
