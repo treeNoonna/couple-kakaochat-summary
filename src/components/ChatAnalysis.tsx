@@ -16,10 +16,10 @@ const USER_COLORS = ['#BB86FC', '#CF6679' , '#03DAC6', '#FFD700', '#F2B800'];
 const stopwords = new Set([
   // photo, emoji, 'search' 제외
   '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ', "ㅠㅠㅠ"
-  ,'사진', '이모티콘', '샵검색'
+  ,'사진', '이모티콘', '#샵검색'
 ]);
 
-// "ㅋㅋㅋㅋ", "ㅎㅎ", "ㅋㅎㅋㅋ" 처럼 ㅋ/ㅎ로만 구성된 토큰은 전부 불용어로 처리
+// ㅋ/ㅎ로만 구성된 단어는 전부 불용어로 처리
 const laughTokenPattern = /^[ㅋㅎ]+$/;
 
 
@@ -103,11 +103,19 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     };
     
     const responseTimes = new Map<string, number[]>();
-    analysis.users.forEach(user => responseTimes.set(user, []));
+    // 봇 제외하고 초기화
+    analysis.users
+      .filter(user => !user.endsWith('봇'))
+      .forEach(user => responseTimes.set(user, []));
     
     for (let i = 1; i < analysis.messages.length; i++) {
       const prevMsg = analysis.messages[i - 1];
       const currMsg = analysis.messages[i];
+      
+      // 봇 메시지는 제외
+      if (prevMsg.sender.endsWith('봇') || currMsg.sender.endsWith('봇')) {
+        continue;
+      }
       
       // 발신자가 바뀌었을 때만 답장으로 간주
       if (prevMsg.sender !== currMsg.sender) {
@@ -127,7 +135,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     
     // 평균 계산
     const result = new Map<string, string>();
-    analysis.users.forEach(user => {
+    analysis.users
+      .filter(user => !user.endsWith('봇'))
+      .forEach(user => {
       const times = responseTimes.get(user) || [];
       if (times.length > 0) {
         const avgMinutes = times.reduce((a, b) => a + b, 0) / times.length;
@@ -153,11 +163,22 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const userWordAnalysis = useMemo(() => {
     const result = new Map<string, { word: string; count: number }[]>();
     
-    analysis.users.forEach(user => {
+    // URL 패턴 감지
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+/i;
+    
+    // 봇 제외
+    analysis.users
+      .filter(user => !user.endsWith('봇'))
+      .forEach(user => {
       const userMessages = analysis.messages.filter(msg => msg.sender === user);
       const wordCounts = new Map<string, number>();
       
       for (const msg of userMessages) {
+        // URL이 포함된 메시지는 단어 분석에서 제외
+        if (urlPattern.test(msg.message)) {
+          continue;
+        }
+        
         const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
         
         for (const word of words) {
@@ -182,7 +203,13 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const monthlyMessageData = useMemo(() => {
     const monthlyData = new Map<string, Map<string, number>>();
     
+    // 봇 제외 필터링
+    const filteredUsers = analysis.users.filter(user => !user.endsWith('봇'));
+    
     for (const msg of analysis.messages) {
+      // 봇 메시지 제외
+      if (msg.sender.endsWith('봇')) continue;
+      
       const dateMatch = msg.timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
       if (dateMatch) {
         const year = dateMatch[1];
@@ -201,7 +228,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     const chartData = Array.from(monthlyData.entries())
       .map(([month, userData]) => {
         const dataPoint: any = { month };
-        analysis.users.forEach(user => {
+        filteredUsers.forEach(user => {
           dataPoint[user] = userData.get(user) || 0;
         });
         return dataPoint;
@@ -480,13 +507,18 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
           </p>
           <p className="flex items-center gap-2">
             <span className="text-gray-400 font-medium">참여자:</span>
-            <span className="font-bold text-pink-400">{analysis.users.join(' & ')}</span>
+            <span className="font-bold text-pink-400">
+              {analysis.users.filter(user => !user.endsWith('봇')).join(' & ')}
+            </span>
           </p>
         </div>
         
         {/* 사용자 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 mb-6">
-          {Array.from(analysis.stats.messagesByUser.entries()).map(([user, count]) => (
+          {Array.from(analysis.stats.messagesByUser.entries())
+            .filter(([user]) => !user.endsWith('봇')) // 'oo봇'으로 끝나는 유저 제외
+            .sort((a, b) => b[1] - a[1]) // 메시지 수 많은 순으로 정렬
+            .map(([user, count]) => (
             <div key={user}>
               <UserStatsCard 
                 user={user}
@@ -506,7 +538,9 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
             <span>자주 사용한 단어</span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {analysis.users.map((user) => {
+            {analysis.users
+              .filter(user => !user.endsWith('봇')) // 'oo봇'으로 끝나는 유저 제외
+              .map((user) => {
               const topWords = userWordAnalysis.get(user) || [];
               const chartData = topWords.map((item, idx) => ({
                 name: item.word,
@@ -617,7 +651,9 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                     }}
                   />
                   <Legend wrapperStyle={{ color: '#BBB' , fontSize: '12px'}} />
-                  {analysis.users.map((user, index) => (
+                  {analysis.users
+                    .filter(user => !user.endsWith('봇')) // 봇 제외
+                    .map((user, index) => (
                     <Line
                       key={user}
                       type="monotone"
@@ -684,7 +720,9 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
         {/* 키워드 통계 */}
         {keywordStats && keywords.length > 0 ? (
           <div className="space-y-4">
-            {analysis.users.map(user => {
+            {analysis.users
+              .filter(user => !user.endsWith('봇')) // 봇 제외
+              .map(user => {
               const userKeywords = keywordStats.get(user)
               return (
                 <div key={user} className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 sm:p-5 rounded-2xl border border-purple-500/50 shadow-lg shadow-purple-500/20">

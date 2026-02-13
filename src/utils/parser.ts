@@ -1,5 +1,13 @@
 import type { ChatMessage, ChatStats, AnalysisResult } from '../types/chat'
 
+// URL 패턴 감지 정규식
+const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+/i;
+
+// URL이 포함된 메시지인지 확인
+export function isUrlMessage(message: string): boolean {
+  return URL_PATTERN.test(message);
+}
+
 // 카카오톡 텍스트 파일 파싱 함수
 export function parseChatFile(content: string): ChatMessage[] {
   const messages: ChatMessage[] = []
@@ -8,34 +16,57 @@ export function parseChatFile(content: string): ChatMessage[] {
   // 카카오톡 메시지 패턴 (여러 형식 지원)
   // 형식 1: 2025. 5. 18. 오전 9:26, 이름 : 메시지
   // 형식 2: 2024년 1월 1일 오후 3:30, 이름 : 메시지
+  // 형식 3: 2025-01-01 오전 9:26, 이름 : 메시지 (일부 모바일 내보내기)
   const pattern1 = /^(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*(?:오전|오후)\s*\d{1,2}:\d{2}),\s*(.+?)\s*:\s*(.+)$/
   const pattern2 = /^(\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*(?:오전|오후)\s*\d{1,2}:\d{2}),\s*(.+?)\s*:\s*(.+)$/
+  const pattern3 = /^(\d{4}-\d{1,2}-\d{1,2}\s*(?:오전|오후)\s*\d{1,2}:\d{2}),\s*(.+?)\s*:\s*(.+)$/
   
-  for (const line of lines) {
+  let currentMessage: ChatMessage | null = null
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     const trimmedLine = line.trim()
     if (!trimmedLine) continue
     
-    // 두 가지 패턴 모두 시도
-    let match = trimmedLine.match(pattern1) || trimmedLine.match(pattern2)
+    // 세 가지 패턴 모두 시도
+    let match = trimmedLine.match(pattern1) || 
+                trimmedLine.match(pattern2) || 
+                trimmedLine.match(pattern3)
     
     if (match) {
+      // 이전 메시지가 있다면 저장
+      if (currentMessage) {
+        messages.push(currentMessage)
+      }
+      
       const [, timestamp, sender, message] = match
-      messages.push({
-        timestamp,
+      currentMessage = {
+        timestamp: timestamp.trim(),
         sender: sender.trim(),
         message: message.trim()
-      })
+      }
+    } else if (currentMessage && trimmedLine) {
+      // 여러 줄 메시지의 경우 이어붙이기
+      currentMessage.message += '\n' + trimmedLine
     }
   }
   
+  // 마지막 메시지 저장
+  if (currentMessage) {
+    messages.push(currentMessage)
+  }
+
   return messages
 }
 
 // 채팅 통계 계산
 // 클라이언트 사이드 앱에서는 useMemo() 같은 클라이언트 최적화 기법을 사용합니다.
 export function calculateStats(messages: ChatMessage[], keywords: string[]): AnalysisResult {
+  // URL 메시지 필터링
+  const filteredMessages = messages.filter(msg => !isUrlMessage(msg.message));
+  
   const stats: ChatStats = {
-    totalMessages: messages.length,
+    totalMessages: filteredMessages.length,
     messagesByUser: new Map(),
     keywordsByUser: new Map()
   }
@@ -43,7 +74,7 @@ export function calculateStats(messages: ChatMessage[], keywords: string[]): Ana
   const usersSet = new Set<string>()
   
   // 메시지 수 계산 및 키워드 분석 - 단일 루프로 최적화 (best practice: js-combine-iterations)
-  for (const msg of messages) {
+  for (const msg of filteredMessages) {
     const { sender, message } = msg
     usersSet.add(sender)
     
@@ -72,7 +103,7 @@ export function calculateStats(messages: ChatMessage[], keywords: string[]): Ana
   
   return {
     stats,
-    messages,
+    messages: filteredMessages, // 필터링된 메시지만 반환
     users: Array.from(usersSet)
   }
 }

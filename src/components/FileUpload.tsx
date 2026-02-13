@@ -75,7 +75,69 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           카카오톡 채팅 내역을 분석해보세요 ✨
         </p>
       </div>
+            {/* 사용 방법 */}
+      <div className="mt-6 sm:mt-8 bg-gray-900 bg-opacity-80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-pink-500/30">
+        <p className="font-bold text-pink-400 mb-3 flex items-center gap-2 text-sm sm:text-base">
+          <span>💡</span>
+          <span>사용 방법</span>
+        </p>
+        <ol className="space-y-2 text-xs sm:text-sm text-gray-300">
+          <li className="flex gap-2">
+            <span className="font-bold min-w-[20px]">1.</span>
+            <span>카카오톡 채팅방 설정 → 대화 내용 내보내기</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold min-w-[20px]">2.</span>
+            <span>모든 메시지 도큐멘트로 저장 후 압축 해제 or<br/>
+            텍스트 파일(.txt)로 저장하기 </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold min-w-[20px]">3.</span>
+            <span>위 버튼을 눌러 업로드하기</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold min-w-[20px]">4.</span>
+            <span>우리의 특별한 대화 분석 결과 확인! 💕</span>
+          </li>
+        </ol>
+      </div>
       
+          {/* 폴더 업로드 */}
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
+             <div className="block">
+          <div className="text-center">
+            <div className="text-5xl sm:text-6xl mb-4">💖</div>
+            <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
+              모든 메시지 도큐멘트 한번에 업로드
+            </p>
+            <p className="text-xs sm:text-sm text-gray-400 mb-6">
+              폴더 안의 모든 .txt 파일을 분석해요
+            </p>
+          </div>
+          <input
+            id="folder-upload"
+            type="file"
+            /* @ts-ignore - webkitdirectory is not in TypeScript definitions */
+            webkitdirectory="true"
+            directory="true"
+            multiple
+            onChange={handleFolderChange}
+            className="hidden"
+          />
+          <button 
+            type="button"
+            className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
+            onClick={() => document.getElementById('folder-upload')?.click()}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <span>📂</span>
+              <span>폴더 선택하기</span>
+              <span>💗</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* 단일 파일 업로드 */}
       <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-pink-500 hover:border-pink-400 transition-all mb-4 sm:mb-6 hover:shadow-pink-500/50">
         <label htmlFor="file-upload" className="cursor-pointer block">
@@ -109,68 +171,6 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
         </label>
       </div>
       
-      {/* 폴더 업로드 */}
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
-        <div className="block">
-          <div className="text-center">
-            <div className="text-5xl sm:text-6xl mb-4">💖</div>
-            <p className="text-lg sm:text-xl font-bold text-purple-400 mb-2">
-              모든 메시지 도큐멘트 한번에 업로드
-            </p>
-            <p className="text-xs sm:text-sm text-gray-400 mb-6">
-              폴더 안의 모든 .txt 파일을 분석해요
-            </p>
-          </div>
-          <input
-            id="folder-upload"
-            type="file"
-            /* @ts-ignore - webkitdirectory is not in TypeScript definitions */
-            webkitdirectory="true"
-            directory="true"
-            multiple
-            onChange={handleFolderChange}
-            className="hidden"
-          />
-          <button 
-            type="button"
-            className="w-full py-4 sm:py-5 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-base sm:text-lg rounded-2xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/50 active:scale-95 transform"
-            onClick={() => document.getElementById('folder-upload')?.click()}
-          >
-            <span className="flex items-center justify-center gap-2">
-              <span>📂</span>
-              <span>폴더 선택하기</span>
-              <span>💗</span>
-            </span>
-          </button>
-        </div>
-      </div>
-      
-      {/* 사용 방법 */}
-      <div className="mt-6 sm:mt-8 bg-gray-900 bg-opacity-80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-pink-500/30">
-        <p className="font-bold text-pink-400 mb-3 flex items-center gap-2 text-sm sm:text-base">
-          <span>💡</span>
-          <span>사용 방법</span>
-        </p>
-        <ol className="space-y-2 text-xs sm:text-sm text-gray-300">
-          <li className="flex gap-2">
-            <span className="font-bold min-w-[20px]">1.</span>
-            <span>카카오톡 채팅방 설정 → 대화 내용 내보내기</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="font-bold min-w-[20px]">2.</span>
-            <span>텍스트 파일(.txt)로 저장하기 or<br/>
-            모든 메시지 도큐멘트로 저장 후 압축 해제</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="font-bold min-w-[20px]">3.</span>
-            <span>위 버튼을 눌러 업로드하기</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="font-bold min-w-[20px]">4.</span>
-            <span>우리의 특별한 대화 분석 결과 확인! 💕</span>
-          </li>
-        </ol>
-      </div>
     </div>
   )
 }

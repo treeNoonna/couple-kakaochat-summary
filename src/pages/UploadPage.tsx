@@ -21,6 +21,25 @@ export default function UploadPage() {
       }
       
       const result = calculateStats(messages, []);
+      
+      // localStorage에 저장 (새로고침 시에도 유지)
+      try {
+        localStorage.setItem('kakao_analysis', JSON.stringify({
+          stats: {
+            totalMessages: result.stats.totalMessages,
+            messagesByUser: Array.from(result.stats.messagesByUser.entries()),
+            keywordsByUser: Array.from(result.stats.keywordsByUser.entries()).map(([user, keywords]) => 
+              [user, Array.from(keywords.entries())]
+            )
+          },
+          messages: result.messages,
+          users: result.users,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.warn(e);
+      }
+      
       navigate('/analysis', { state: { analysis: result } });
     } finally {
       setIsLoading(false);
