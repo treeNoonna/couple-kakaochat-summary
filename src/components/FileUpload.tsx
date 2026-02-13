@@ -75,8 +75,9 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
           카카오톡 채팅 내역을 분석해보세요 ✨
         </p>
       </div>
-            {/* 사용 방법 */}
-      <div className="mt-6 sm:mt-8 bg-gray-900 bg-opacity-80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-pink-500/30">
+      
+      {/* 사용 방법 */}
+      <div className="mb-6 sm:mb-8 bg-gray-900 bg-opacity-80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-pink-500/30">
         <p className="font-bold text-pink-400 mb-3 flex items-center gap-2 text-sm sm:text-base">
           <span>💡</span>
           <span>사용 방법</span>
@@ -102,8 +103,8 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
         </ol>
       </div>
       
-          {/* 폴더 업로드 */}
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
+      {/* 폴더 업로드 */}
+      <div className="mb-4 sm:mb-6 bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-purple-500 hover:border-purple-400 transition-all hover:shadow-purple-500/50">
              <div className="block">
           <div className="text-center">
             <div className="text-5xl sm:text-6xl mb-4">💖</div>
@@ -139,7 +140,7 @@ export default function FileUpload({ onFileUpload }: FileUploadProps) {
       </div>
 
       {/* 단일 파일 업로드 */}
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-pink-500 hover:border-pink-400 transition-all mb-4 sm:mb-6 hover:shadow-pink-500/50">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-pink-500 hover:border-pink-400 transition-all hover:shadow-pink-500/50">
         <label htmlFor="file-upload" className="cursor-pointer block">
           <div className="text-center">
             <div className="text-5xl sm:text-6xl mb-4">💝</div>
