@@ -22,6 +22,9 @@ const stopwords = new Set([
 // ㅋ/ㅎ로만 구성된 단어는 전부 불용어로 처리
 const laughTokenPattern = /^[ㅋㅎ]+$/;
 
+// 날짜 패턴 (2025, 12월, 17일, 오전, 오후 등)
+const datePattern = /^\d{1,4}$|^(\d{1,2}월|\d{1,2}일|오전|오후)$/;
+
 
 // best practice: rerender-memo - 메모이제이션으로 최적화
 const UserStatsCard = memo(function UserStatsCard({
@@ -179,7 +182,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
         
         for (const word of words) {
-          if (word && word.length > 1 && !stopwords.has(word) && !laughTokenPattern.test(word)) {
+          if (word && word.length > 1 && !stopwords.has(word) && !laughTokenPattern.test(word) && !datePattern.test(word)) {
             wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
           }
         }
