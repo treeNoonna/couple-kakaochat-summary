@@ -1,6 +1,6 @@
 import { useState, useMemo, memo, useRef } from 'react'
 import type { AnalysisResult } from '../types/chat'
-import { calculatePercentage } from '../utils/parser'
+import { calculatePercentage, isUrlMessage } from '../utils/parser'
 import { PieChart, Pie, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
 import html2canvas from 'html2canvas'
 
@@ -163,9 +163,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const userWordAnalysis = useMemo(() => {
     const result = new Map<string, { word: string; count: number }[]>();
     
-    // URL 패턴 감지
-    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+/i;
-    
     // 봇 제외
     analysis.users
       .filter(user => !user.endsWith('봇'))
@@ -174,8 +171,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       const wordCounts = new Map<string, number>();
       
       for (const msg of userMessages) {
-        // URL이 포함된 메시지는 단어 분석에서 제외
-        if (urlPattern.test(msg.message)) {
+        // URL/공유 메시지는 단어 분석에서 제외
+        if (isUrlMessage(msg.message)) {
           continue;
         }
         

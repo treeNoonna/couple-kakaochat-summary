@@ -3,9 +3,35 @@ import type { ChatMessage, ChatStats, AnalysisResult } from '../types/chat'
 // URL 패턴 감지 정규식
 const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+/i;
 
-// URL이 포함된 메시지인지 확인
+// 공유/링크 관련 메시지 패턴 (쿠팡, 배민 등)
+const SHARE_PATTERNS = [
+  /\[쿠팡\s*로켓\s*선물\]/i,           // [쿠팡 로켓 선물]
+  /link\.coupang\.com/i,               // 쿠팡 링크
+  /님이\s*선물을\s*보냈습니다/i,        // OO님이 선물을 보냈습니다
+  /배송지를\s*입력/i,                   // 배송지를 입력
+  /쿠팡을\s*추천합니다/i,               // 쿠팡을 추천합니다
+  /\[배달의민족\]/i,                    // [배달의민족]
+  /baemin\.me/i,                        // 배민 링크
+  /toss\.me/i,                          // 토스 링크
+  /kakaopay/i,                          // 카카오페이
+  /naverpay/i,                          // 네이버페이
+];
+
+// URL 또는 공유 메시지인지 확인
 export function isUrlMessage(message: string): boolean {
-  return URL_PATTERN.test(message);
+  // URL 패턴 체크
+  if (URL_PATTERN.test(message)) {
+    return true;
+  }
+  
+  // 공유/링크 관련 메시지 패턴 체크
+  for (const pattern of SHARE_PATTERNS) {
+    if (pattern.test(message)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // 카카오톡 텍스트 파일 파싱 함수
