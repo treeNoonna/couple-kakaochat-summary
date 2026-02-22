@@ -22,8 +22,8 @@ const stopwords = new Set([
 // ㅋ/ㅎ로만 구성된 단어는 전부 불용어로 처리
 const laughTokenPattern = /^[ㅋㅎ]+$/;
 
-// 날짜 패턴 (2025, 12월, 17일, 오전, 오후 등)
-const datePattern = /^\d{1,4}$|^(\d{1,2}월|\d{1,2}일|오전|오후)$/;
+// 날짜/시간 패턴 (2025, 2025년, 12월, 17일, 오전, 오후 등)
+const datePattern = /^(\d{1,4}|\d{1,4}년|\d{1,2}월|\d{1,2}일|\d{1,2}시|\d{1,2}분|\d{1,2}초|오전|오후)$/;
 
 
 // best practice: rerender-memo - 메모이제이션으로 최적화
@@ -87,20 +87,23 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   // 평균 답장 속도 계산
   const avgResponseTime = useMemo(() => {
     const parseTimestamp = (timestamp: string): Date | null => {
-      // "2025. 11. 9. 오후 11:40" 형식 파싱
-      const match = timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(오전|오후)\s*(\d{1,2}):(\d{2})/);
+      // "2025. 11. 9. 오후 11:40" / "2026. 1. 1 10:43" 형식 파싱
+      const match = timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})/);
       if (!match) return null;
       
       const year = parseInt(match[1]);
       const month = parseInt(match[2]) - 1;
       const day = parseInt(match[3]);
-      const isPM = match[4] === '오후';
+      const meridiem = match[4];
       let hour = parseInt(match[5]);
       const minute = parseInt(match[6]);
       
-      // 오후/오전 처리
-      if (isPM && hour !== 12) hour += 12;
-      if (!isPM && hour === 12) hour = 0;
+      // 오전/오후가 있으면 12시간 표기로 변환, 없으면 24시간 표기로 그대로 사용
+      if (meridiem) {
+        const isPM = meridiem === '오후';
+        if (isPM && hour !== 12) hour += 12;
+        if (!isPM && hour === 12) hour = 0;
+      }
       
       return new Date(year, month, day, hour, minute);
     };
