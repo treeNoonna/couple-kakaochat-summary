@@ -1,6 +1,6 @@
-import { useState, useMemo, memo, useRef } from 'react'
+import { useState, useMemo, memo, useRef, useEffect } from 'react'
 import type { AnalysisResult } from '../types/chat'
-import { calculatePercentage, isUrlMessage } from '../utils/parser'
+import { calculatePercentage, isUrlMessage, parseKakaoTimestamp, extractYearMonthKey, escapeRegExp } from '../utils/parser'
 import { PieChart, Pie, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
 import html2canvas from 'html2canvas'
 
@@ -82,32 +82,12 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
   const analysisRef = useRef<HTMLDivElement>(null)
+  const modalCloseButtonRef = useRef<HTMLButtonElement>(null)
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   
   // 평균 답장 속도 계산
   const avgResponseTime = useMemo(() => {
-    const parseTimestamp = (timestamp: string): Date | null => {
-      // "2025. 11. 9. 오후 11:40" / "2026. 1. 1 10:43" 형식 파싱
-      const match = timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})/);
-      if (!match) return null;
-      
-      const year = parseInt(match[1]);
-      const month = parseInt(match[2]) - 1;
-      const day = parseInt(match[3]);
-      const meridiem = match[4];
-      let hour = parseInt(match[5]);
-      const minute = parseInt(match[6]);
-      
-      // 오전/오후가 있으면 12시간 표기로 변환, 없으면 24시간 표기로 그대로 사용
-      if (meridiem) {
-        const isPM = meridiem === '오후';
-        if (isPM && hour !== 12) hour += 12;
-        if (!isPM && hour === 12) hour = 0;
-      }
-      
-      return new Date(year, month, day, hour, minute);
-    };
-    
     const responseTimes = new Map<string, number[]>();
     // 봇 제외하고 초기화
     analysis.users
@@ -125,8 +105,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       
       // 발신자가 바뀌었을 때만 답장으로 간주
       if (prevMsg.sender !== currMsg.sender) {
-        const prevTime = parseTimestamp(prevMsg.timestamp);
-        const currTime = parseTimestamp(currMsg.timestamp);
+        const prevTime = parseKakaoTimestamp(prevMsg.timestamp);
+        const currTime = parseKakaoTimestamp(currMsg.timestamp);
         
         if (prevTime && currTime) {
           const diffMinutes = (currTime.getTime() - prevTime.getTime()) / (1000 * 60);
@@ -213,11 +193,8 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       // 봇 메시지 제외
       if (msg.sender.endsWith('봇')) continue;
       
-      const dateMatch = msg.timestamp.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
-      if (dateMatch) {
-        const year = dateMatch[1];
-        const month = dateMatch[2].padStart(2, '0');
-        const monthKey = `${year}.${month}`;
+      const monthKey = extractYearMonthKey(msg.timestamp);
+      if (monthKey) {
         
         if (!monthlyData.has(monthKey)) {
           monthlyData.set(monthKey, new Map());
@@ -260,7 +237,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
         const lowerKeyword = keyword.toLowerCase()
         if (!keywordSet.has(lowerKeyword)) continue
         
-        const count = (lowerMessage.match(new RegExp(lowerKeyword, 'g')) || []).length
+        const count = (lowerMessage.match(new RegExp(escapeRegExp(lowerKeyword), 'g')) || []).length
         if (count > 0) {
           if (!stats.has(msg.sender)) {
             stats.set(msg.sender, new Map())
@@ -289,6 +266,34 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       return messageWithoutEmoticons.toLowerCase().includes(lowerKeyword)
     })
   }, [selectedKeyword, selectedUser, analysis.messages]);
+
+  const highlightedKeywordRegex = useMemo(() => {
+    if (!selectedKeyword) return null;
+    return new RegExp(`(${escapeRegExp(selectedKeyword)})`, 'gi');
+  }, [selectedKeyword]);
+
+  useEffect(() => {
+    if (!selectedKeyword) return;
+
+    lastFocusedElementRef.current = document.activeElement as HTMLElement | null;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseMessageList();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    modalCloseButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', handleEscape);
+      lastFocusedElementRef.current?.focus();
+    };
+  }, [selectedKeyword]);
   
   // best practice: rerender-functional-setstate - 함수형 업데이트로 안정적인 콜백
   const handleAddKeyword = () => {
@@ -475,9 +480,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
       {/* 헤더 */}
       <div ref={analysisRef} className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border-2 border-pink-500">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
-            <span>💕</span>
-            <span>분석 결과</span>
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-300 to-blue-300 bg-clip-text text-transparent">
+            분석 결과
           </h1>
           <div className="flex gap-2 w-full sm:w-auto">
             <button
@@ -487,8 +491,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
             >
               {isDownloading ? '저장 중...' : (
                 <>
-                  <span className="hidden sm:inline">이미지 저장 📸</span>
-                  <span className="sm:hidden">저장 📸</span>
+                  <span className="hidden sm:inline">이미지 저장</span>
+                  <span className="sm:hidden">저장</span>
                 </>
               )}
             </button>
@@ -496,8 +500,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
               onClick={onReset}
               className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
             >
-              <span className="hidden sm:inline">다시 분석 🔄</span>
-              <span className="sm:hidden">다시 🔄</span>
+              <span className="hidden sm:inline">다시 분석</span>
+              <span className="sm:hidden">다시</span>
             </button>
           </div>
         </div>
@@ -536,9 +540,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
         
         {/* 자주 사용한 단어 */}
         <div className="mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-            <span>📊</span>
-            <span>자주 사용한 단어</span>
+          <h2 className="text-lg sm:text-xl font-bold text-purple-300 mb-4">
+            자주 사용한 단어
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {analysis.users
@@ -617,9 +620,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
         
         {/* 월별 메시지 추이 */}
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-purple-400 mb-4 flex items-center gap-2">
-            <span>📈</span>
-            <span>월별 메시지</span>
+          <h2 className="text-lg sm:text-xl font-bold text-purple-300 mb-4">
+            월별 메시지
           </h2>
           <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
             <div style={{ width: '100%', height: 400 }}>
@@ -676,9 +678,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
       
       {/* 키워드 검색 */}
       <div data-exclude-capture className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
-        <h2 className="text-xl sm:text-2xl font-bold text-purple-400 mb-4 sm:mb-5 flex items-center gap-2">
-          <span>💗</span>
-          <span>키워드 검색</span>
+        <h2 className="text-xl sm:text-2xl font-bold text-purple-300 mb-4 sm:mb-5">
+          키워드 검색
         </h2>
         
         {/* 키워드 입력 */}
@@ -712,6 +713,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                 <button
                   onClick={() => handleRemoveKeyword(keyword)}
                   className="text-pink-400 hover:text-pink-300 font-bold ml-1"
+                  aria-label={`${keyword} 키워드 삭제`}
                 >
                   ×
                 </button>
@@ -721,6 +723,11 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
         )}
         
         {/* 키워드 통계 */}
+        <div className="sr-only" aria-live="polite">
+          키워드 분석 결과.
+          {selectedUser ? `${selectedUser} 사용자 필터 적용.` : '전체 사용자 보기.'}
+          {selectedKeyword ? `선택된 키워드 ${selectedKeyword}, 메시지 ${filteredMessages.length}개.` : '선택된 키워드 없음.'}
+        </div>
         {keywordStats && keywords.length > 0 ? (
           <div className="space-y-4">
             {analysis.users
@@ -748,7 +755,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                             {count}회
                           </div>
                           {count > 0 && (
-                            <div className="text-[10px] sm:text-xs text-pink-400 mt-1 font-medium">탭하여 메시지 보기 💕</div>
+                            <div className="text-[10px] sm:text-xs text-pink-400 mt-1 font-medium">탭하여 메시지 보기</div>
                           )}
                         </button>
                       )
@@ -770,13 +777,22 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
       
       {/* 키워드 메시지 목록 모달 */}
       {selectedKeyword && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col border-4 border-pink-200">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+          onClick={handleCloseMessageList}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col border-4 border-pink-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="keyword-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* 헤더 */}
             <div className="bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 p-5 sm:p-6 text-white">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
+                  <h2 id="keyword-modal-title" className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
                     <span>💕</span>
                     <span>"{selectedKeyword}"</span>
                   </h2>
@@ -792,8 +808,10 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                   </p>
                 </div>
                 <button
+                  ref={modalCloseButtonRef}
                   onClick={handleCloseMessageList}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+                  aria-label="키워드 메시지 모달 닫기"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -819,7 +837,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                     </div>
                     <p className="text-gray-300 whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed">
                       {/* 키워드 하이라이트 */}
-                      {msg.message.split(new RegExp(`(${selectedKeyword})`, 'gi')).map((part, i) => (
+                      {(highlightedKeywordRegex ? msg.message.split(highlightedKeywordRegex) : [msg.message]).map((part, i) => (
                         part.toLowerCase() === selectedKeyword.toLowerCase() ? (
                           <mark key={i} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold px-1.5 py-0.5 rounded">
                             {part}
@@ -845,7 +863,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                 onClick={handleCloseMessageList}
                 className="px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl hover:from-pink-500 hover:to-purple-500 transition-all shadow-md active:scale-95 transform text-sm sm:text-base"
               >
-                닫기 💕
+                닫기
               </button>
             </div>
           </div>

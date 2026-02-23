@@ -3,6 +3,10 @@ import type { ChatMessage, ChatStats, AnalysisResult } from '../types/chat'
 // URL 패턴 감지 정규식
 const URL_PATTERN = /https?:\/\/[^\s]+|www\.[^\s]+/i;
 
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // 공유/링크 관련 메시지 패턴 (쿠팡, 배민 등)
 const SHARE_PATTERNS = [
   /\[쿠팡\s*로켓\s*선물\]/i,           // [쿠팡 로켓 선물]
@@ -32,6 +36,52 @@ export function isUrlMessage(message: string): boolean {
   }
   
   return false;
+}
+
+export function parseKakaoTimestamp(timestamp: string): Date | null {
+  const patterns = [
+    /^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})$/,
+    /^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})$/,
+    /^(\d{4})-(\d{1,2})-(\d{1,2})\s*(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})$/
+  ];
+
+  for (const pattern of patterns) {
+    const match = timestamp.match(pattern);
+    if (!match) continue;
+
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    const meridiem = match[4];
+    let hour = parseInt(match[5], 10);
+    const minute = parseInt(match[6], 10);
+
+    if (month < 1 || month > 12 || day < 1 || day > 31 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    if (meridiem) {
+      if (hour < 1 || hour > 12) return null;
+      const isPM = meridiem === '오후';
+      if (isPM && hour !== 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+    } else if (hour < 0 || hour > 23) {
+      return null;
+    }
+
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  return null;
+}
+
+export function extractYearMonthKey(timestamp: string): string | null {
+  const date = parseKakaoTimestamp(timestamp);
+  if (!date || Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}.${month}`;
 }
 
 // 카카오톡 텍스트 파일 파싱 함수
@@ -120,7 +170,7 @@ export function calculateStats(messages: ChatMessage[], keywords: string[]): Ana
       for (const keyword of keywords) {
         const lowerKeyword = keyword.toLowerCase()
         // 단순 포함 검색 (단어 경계 무시)
-        const count = (lowerMessage.match(new RegExp(lowerKeyword, 'g')) || []).length
+        const count = (lowerMessage.match(new RegExp(escapeRegExp(lowerKeyword), 'g')) || []).length
         if (count > 0) {
           userKeywords.set(keyword, (userKeywords.get(keyword) || 0) + count)
         }
