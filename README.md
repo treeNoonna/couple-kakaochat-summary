@@ -16,6 +16,15 @@
 - **Deployment**: Vercel
 - **Performance**: Vercel React Best Practices 적용
 
+## 🤖 AI 요약 설정
+
+AI 요약 기능은 서버 환경변수 `GEMINI_API_KEY`를 사용합니다.
+
+로컬 실행 또는 Vercel 배포 환경에 아래 값을 설정하세요.
+
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (선택, 기본값: `gemini-1.5-flash`)
+
 ## 💻 로컬 실행
 
 ### 의존성 설치
@@ -37,6 +46,9 @@ npm run build
 2. 텍스트 파일(.txt)로 저장
 3. 웹사이트에서 파일 또는 폴더 업로드
 4. 분석 결과 확인!
+
+로컬에서 `npm run dev`로 실행해도 AI 요약 API가 함께 동작합니다.  
+서버 환경변수 `GEMINI_API_KEY`가 없으면 요약은 실패하니, `.env.local` 또는 Vercel 환경설정에 키를 넣어주세요.
 
 ## 🎨 디자인
 

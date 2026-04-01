@@ -1,42 +1,22 @@
-import { useState, useMemo, memo, useRef, useEffect } from 'react'
+import { useState, useMemo, memo } from 'react'
 import type { AnalysisResult } from '../types/chat'
-import { calculatePercentage, isUrlMessage, parseKakaoTimestamp, extractYearMonthKey, escapeRegExp } from '../utils/parser'
-import { PieChart, Pie, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
-import html2canvas from 'html2canvas'
+import { calculatePercentage } from '../utils/parser'
+import SummaryModal from './SummaryModal'
 
 interface ChatAnalysisProps {
   analysis: AnalysisResult
   onReset: () => void
 }
 
-const COLORS = ['#BB86FC', '#CF6679', '#03DAC6', '#FFD700', '#F2B880', '#FF6B9D', '#4ECDC4', '#FFA07A', '#98D8C8', '#F7DC6F'];
-const USER_COLORS = ['#BB86FC', '#CF6679' , '#03DAC6', '#FFD700', '#F2B800'];
-
-// 한국어 불용어 목록
-const stopwords = new Set([
-  // photo, emoji, 'search' 제외
-  '이', '가', '은', '는', '을', '를', '의', '에', '에서', '으로', '하고', '와', '과', '도', '만', '까지', '부터', '께', '께서', '한테', '에게', '입니다', '습니다', '요', '죠', '그', '저', '이것', '저것', '그것', '있다', '없다', '하다', '되다', '이다', '것', '수', '등', '때', '좀', '더', '잘', '못', '안', '걍', '왜', '또', '뭐', '거', '응', '아니', '근데', '진짜', '너무', '정말', '내가', '너가', '우리', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅋㅋㅋㅋ', 'ㅎㅎ', 'ㅎㅎㅎ', 'ㅠㅠ', 'ㅜㅜ', "ㅠㅠㅠ"
-  ,'사진', '이모티콘', '#샵검색'
-]);
-
-// ㅋ/ㅎ로만 구성된 단어는 전부 불용어로 처리
-const laughTokenPattern = /^[ㅋㅎ]+$/;
-
-// 날짜/시간 패턴 (2025, 2025년, 12월, 17일, 오전, 오후 등)
-const datePattern = /^(\d{1,4}|\d{1,4}년|\d{1,2}월|\d{1,2}일|\d{1,2}시|\d{1,2}분|\d{1,2}초|오전|오후)$/;
-
-
 // best practice: rerender-memo - 메모이제이션으로 최적화
 const UserStatsCard = memo(function UserStatsCard({
   user,
   messageCount,
-  totalMessages, 
-  avgResponseTime
+  totalMessages
 }: {
   user: string
   messageCount: number
-  totalMessages: number, 
-  avgResponseTime: string
+  totalMessages: number
 }) {
   const percentage = calculatePercentage(messageCount, totalMessages)
   
@@ -65,12 +45,9 @@ const UserStatsCard = memo(function UserStatsCard({
             />
           </div>
         </div>
-        <div className="mt-4">
-        <div className="flex justify-between text-xs sm:text-sm text-gray-400 mb-2 font-medium">
-            <span>평균 답장 속도</span>
-            <span className="font-bold text-pink-400">{avgResponseTime}</span>
-          </div>
-        </div>
+      </div>
+      <div className="text-center text-sm text-pink-400/70 mt-4 font-medium">
+        클릭해서 AI 요약 보기 🧠
       </div>
     </div>
   )
@@ -81,142 +58,13 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   const [keywords, setKeywords] = useState<string[]>([])
   const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
-  const analysisRef = useRef<HTMLDivElement>(null)
-  const modalCloseButtonRef = useRef<HTMLButtonElement>(null)
-  const lastFocusedElementRef = useRef<HTMLElement | null>(null)
-  const [isDownloading, setIsDownloading] = useState(false)
   
-  // 평균 답장 속도 계산
-  const avgResponseTime = useMemo(() => {
-    const responseTimes = new Map<string, number[]>();
-    // 봇 제외하고 초기화
-    analysis.users
-      .filter(user => !user.endsWith('봇'))
-      .forEach(user => responseTimes.set(user, []));
-    
-    for (let i = 1; i < analysis.messages.length; i++) {
-      const prevMsg = analysis.messages[i - 1];
-      const currMsg = analysis.messages[i];
-      
-      // 봇 메시지는 제외
-      if (prevMsg.sender.endsWith('봇') || currMsg.sender.endsWith('봇')) {
-        continue;
-      }
-      
-      // 발신자가 바뀌었을 때만 답장으로 간주
-      if (prevMsg.sender !== currMsg.sender) {
-        const prevTime = parseKakaoTimestamp(prevMsg.timestamp);
-        const currTime = parseKakaoTimestamp(currMsg.timestamp);
-        
-        if (prevTime && currTime) {
-          const diffMinutes = (currTime.getTime() - prevTime.getTime()) / (1000 * 60);
-          
-          // 24시간(1440분) 이내의 답장만 계산 (너무 긴 시간은 제외)
-          if (diffMinutes > 0 && diffMinutes <= 1440) {
-            responseTimes.get(currMsg.sender)?.push(diffMinutes);
-          }
-        }
-      }
-    }
-    
-    // 평균 계산
-    const result = new Map<string, string>();
-    analysis.users
-      .filter(user => !user.endsWith('봇'))
-      .forEach(user => {
-      const times = responseTimes.get(user) || [];
-      if (times.length > 0) {
-        const avgMinutes = times.reduce((a, b) => a + b, 0) / times.length;
-        
-        if (avgMinutes < 60) {
-          result.set(user, `${Math.round(avgMinutes)}분`);
-        } else if (avgMinutes < 1440) {
-          const hours = Math.floor(avgMinutes / 60);
-          const mins = Math.round(avgMinutes % 60);
-          result.set(user, `${hours}시간 ${mins}분`);
-        } else {
-          result.set(user, '1일 이상');
-        }
-      } else {
-        result.set(user, '데이터 없음');
-      }
-    });
-    
-    return result;
-  }, [analysis.messages, analysis.users]);
-  
-  // 각 사용자별 자주 사용한 단어 분석
-  const userWordAnalysis = useMemo(() => {
-    const result = new Map<string, { word: string; count: number }[]>();
-    
-    // 봇 제외
-    analysis.users
-      .filter(user => !user.endsWith('봇'))
-      .forEach(user => {
-      const userMessages = analysis.messages.filter(msg => msg.sender === user);
-      const wordCounts = new Map<string, number>();
-      
-      for (const msg of userMessages) {
-        // URL/공유 메시지는 단어 분석에서 제외
-        if (isUrlMessage(msg.message)) {
-          continue;
-        }
-        
-        const words = msg.message.toLowerCase().split(/[\s,.\-!?~"""…]+/);
-        
-        for (const word of words) {
-          if (word && word.length > 1 && !stopwords.has(word) && !laughTokenPattern.test(word) && !datePattern.test(word)) {
-            wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
-          }
-        }
-      }
-      
-      const sortedWords = Array.from(wordCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
-        .map(([word, count]) => ({ word, count }));
-      
-      result.set(user, sortedWords);
-    });
-    
-    return result;
-  }, [analysis.messages, analysis.users]);
-  
-  // 월별 메시지 수 분석
-  const monthlyMessageData = useMemo(() => {
-    const monthlyData = new Map<string, Map<string, number>>();
-    
-    // 봇 제외 필터링
-    const filteredUsers = analysis.users.filter(user => !user.endsWith('봇'));
-    
-    for (const msg of analysis.messages) {
-      // 봇 메시지 제외
-      if (msg.sender.endsWith('봇')) continue;
-      
-      const monthKey = extractYearMonthKey(msg.timestamp);
-      if (monthKey) {
-        
-        if (!monthlyData.has(monthKey)) {
-          monthlyData.set(monthKey, new Map());
-        }
-        
-        const monthStats = monthlyData.get(monthKey)!;
-        monthStats.set(msg.sender, (monthStats.get(msg.sender) || 0) + 1);
-      }
-    }
-    
-    const chartData = Array.from(monthlyData.entries())
-      .map(([month, userData]) => {
-        const dataPoint: any = { month };
-        filteredUsers.forEach(user => {
-          dataPoint[user] = userData.get(user) || 0;
-        });
-        return dataPoint;
-      })
-      .sort((a, b) => a.month.localeCompare(b.month));
-    
-    return chartData;
-  }, [analysis.messages, analysis.users]);
+  // AI 요약 모달 상태
+  const [isSummaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryUser, setSummaryUser] = useState<string | null>(null);
+  const [summaryContent, setSummaryContent] = useState<string | null>(null);
+  const [isSummaryLoading, setSummaryLoading] = useState(false);
+  const [summaryCache, setSummaryCache] = useState<Record<string, string>>({});
 
   
   // best practice: rerender-derived-state - 파생 상태 계산
@@ -229,15 +77,13 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     const keywordSet = new Set(keywords.map(k => k.toLowerCase()))
     
     for (const msg of analysis.messages) {
-      // 괄호 안의 내용(이모티콘) 제거
-      const messageWithoutEmoticons = msg.message.replace(/\([^)]*\)/g, '')
-      const lowerMessage = messageWithoutEmoticons.toLowerCase()
+      const lowerMessage = msg.message.toLowerCase()
       
       for (const keyword of keywords) {
         const lowerKeyword = keyword.toLowerCase()
         if (!keywordSet.has(lowerKeyword)) continue
         
-        const count = (lowerMessage.match(new RegExp(escapeRegExp(lowerKeyword), 'g')) || []).length
+        const count = (lowerMessage.match(new RegExp(lowerKeyword, 'g')) || []).length
         if (count > 0) {
           if (!stats.has(msg.sender)) {
             stats.set(msg.sender, new Map())
@@ -249,7 +95,7 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     }
     
     return stats
-  }, [keywords, analysis.messages]);
+  }, [keywords, analysis.messages])
   
   // 선택된 키워드가 포함된 메시지 필터링
   const filteredMessages = useMemo(() => {
@@ -261,39 +107,9 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
       // 사용자 필터가 있으면 해당 사용자만
       if (selectedUser && msg.sender !== selectedUser) return false
       
-      // 괄호 안의 내용(이모티콘) 제거 후 검색
-      const messageWithoutEmoticons = msg.message.replace(/\([^)]*\)/g, '')
-      return messageWithoutEmoticons.toLowerCase().includes(lowerKeyword)
+      return msg.message.toLowerCase().includes(lowerKeyword)
     })
-  }, [selectedKeyword, selectedUser, analysis.messages]);
-
-  const highlightedKeywordRegex = useMemo(() => {
-    if (!selectedKeyword) return null;
-    return new RegExp(`(${escapeRegExp(selectedKeyword)})`, 'gi');
-  }, [selectedKeyword]);
-
-  useEffect(() => {
-    if (!selectedKeyword) return;
-
-    lastFocusedElementRef.current = document.activeElement as HTMLElement | null;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleCloseMessageList();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    modalCloseButtonRef.current?.focus();
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.removeEventListener('keydown', handleEscape);
-      lastFocusedElementRef.current?.focus();
-    };
-  }, [selectedKeyword]);
+  }, [selectedKeyword, selectedUser, analysis.messages])
   
   // best practice: rerender-functional-setstate - 함수형 업데이트로 안정적인 콜백
   const handleAddKeyword = () => {
@@ -309,7 +125,6 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
   }
   
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter') {
       handleAddKeyword()
     }
@@ -325,187 +140,97 @@ export default function ChatAnalysis({ analysis, onReset }: ChatAnalysisProps) {
     setSelectedUser(null)
   }
   
+  const handleUserSummaryClick = async (user: string) => {
+    setSummaryUser(user);
+    setSummaryModalOpen(true);
 
-const wrapLabelText = (text: string, maxCharsPerLine: number) => {
-  const trimmed = text.trim();
-  if (!trimmed) return [''];
-  const words = trimmed.split(' ');
-  if (words.length === 1) {
-    const chunks: string[] = [];
-    for (let i = 0; i < trimmed.length; i += maxCharsPerLine) {
-      chunks.push(trimmed.slice(i, i + maxCharsPerLine));
+    // 1. 캐시 확인: 캐시된 내용이 있으면 즉시 보여주고 종료
+    if (summaryCache[user]) {
+      setSummaryContent(summaryCache[user]);
+      setSummaryLoading(false);
+      return;
     }
-    return chunks;
-  }
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxCharsPerLine) {
-      if (current) lines.push(current);
-      current = word;
-    } else {
-      current = next;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-};
 
-  const handleDownloadImage = async () => {
-    if (!analysisRef.current) return;
-    
-    setIsDownloading(true);
-    
+    // 2. API 호출 시작: 로딩 상태 활성화
+    setSummaryLoading(true);
+    setSummaryContent(null);
+
+    // 모든 메시지를 하나의 텍스트로 합치기
+    const userMessagesText = analysis.messages
+      .filter((msg) => msg.sender === user)
+      .map((msg) => `[${msg.timestamp}] ${msg.message}`)
+      .join('\n');
+
+    const messages = [
+      {
+        role: 'user' as const,
+        content: userMessagesText,
+      }
+    ];
+
     try {
-      // 키워드 검색 섹션을 제외하고 캡처
-      const keywordSection = document.querySelector('[data-exclude-capture]');
-      const originalDisplay = keywordSection ? (keywordSection as HTMLElement).style.display : '';
-      if (keywordSection) {
-        (keywordSection as HTMLElement).style.display = 'none';
+      const response = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages, user }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || `서버 응답 오류 (${response.status})`);
       }
+
+      // 3. JSON 응답 처리
+      const data = await response.json();
+      const summary = data.text || '요약 내용이 없습니다.';
       
-      // 투명 텍스트를 실제 색상으로 변경
-      const transparentTexts = analysisRef.current.querySelectorAll('.bg-clip-text');
-      const originalStyles: { element: Element; backgroundImage: string; webkitBackgroundClip: string; backgroundClip: string; color: string }[] = [];
+      setSummaryContent(summary);
       
-      transparentTexts.forEach((element) => {
-        const el = element as HTMLElement;
-        originalStyles.push({
-          element: el,
-          backgroundImage: el.style.backgroundImage,
-          webkitBackgroundClip: el.style.webkitBackgroundClip,
-          backgroundClip: el.style.backgroundClip,
-          color: el.style.color
-        });
-        
-        // 투명 텍스트를 핑크색으로 변경
-        el.style.backgroundImage = 'none';
-        el.style.webkitBackgroundClip = 'unset';
-        el.style.backgroundClip = 'unset';
-        el.style.color = '#f472b6'; // text-pink-400
-      });
-      
-      // 버튼 숨기기
-      const buttons = analysisRef.current.querySelectorAll('button');
-      const buttonDisplays: string[] = [];
-      buttons.forEach((button) => {
-        buttonDisplays.push(button.style.display);
-        button.style.display = 'none';
-      });
-      
-      // 모바일 여부 확인
-      const isMobile = window.innerWidth < 768;
-      
-      const canvas = await html2canvas(analysisRef.current, {
-        backgroundColor: '#0f0f0f',
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-      });
-      
-      // 원래 상태로 복원
-      if (keywordSection) {
-        (keywordSection as HTMLElement).style.display = originalDisplay;
-      }
-      
-      // 투명 텍스트 원래대로 복원
-      originalStyles.forEach(({ element, backgroundImage, webkitBackgroundClip, backgroundClip, color }) => {
-        const el = element as HTMLElement;
-        el.style.backgroundImage = backgroundImage;
-        el.style.webkitBackgroundClip = webkitBackgroundClip;
-        el.style.backgroundClip = backgroundClip;
-        el.style.color = color;
-      });
-      
-      // 버튼 원래대로 복원
-      buttons.forEach((button, index) => {
-        button.style.display = buttonDisplays[index];
-      });
-      
-      // Blob 생성
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => resolve(blob!), 'image/png', 0.95);
-      });
-      
-      const date = new Date().toISOString().split('T')[0];
-      const fileName = `카카오톡_대화분석_${date}.png`;
-      
-      // 모바일에서 Web Share API 사용 가능한 경우
-      if (isMobile && navigator.share && navigator.canShare) {
-        try {
-          const file = new File([blob], fileName, { type: 'image/png' });
-          const shareData = {
-            files: [file],
-            title: '카카오톡 대화 분석',
-            text: '우리의 대화 분석 결과입니다!'
-          };
-          
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-            return; // 공유 성공 시 다운로드 스킵
-          }
-        } catch (err: any) {
-          // 공유 취소하거나 실패하면 다운로드로 fallback
-          if (err.name === 'AbortError') {
-            console.log('공유가 취소되었습니다.');
-            return;
-          }
-        }
-      }
-      
-      // 일반 다운로드 (데스크톱 또는 공유 불가능한 경우)
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-      
-      // 모바일에서 성공 피드백
-      if (isMobile) {
-        alert('이미지가 저장되었습니다! 📸');
-      }
+      // 4. 캐시 저장
+      setSummaryCache(prev => ({ ...prev, [user]: summary }));
+
     } catch (error) {
-      console.error('이미지 저장 실패:', error);
-      alert('이미지 저장에 실패했습니다. 다시 시도해주세요.');
+      console.error(error);
+      const errorMessage =
+        error instanceof Error && error.message
+          ? `요약을 불러오는 데 실패했습니다.\n${error.message}`
+          : '요약을 불러오는 데 실패했습니다. 잠시 후 다시 시도해주세요.';
+      setSummaryContent(errorMessage);
+      // 실패한 결과는 캐시하지 않음
     } finally {
-      setIsDownloading(false);
+      // 5. 로딩 종료
+      setSummaryLoading(false);
     }
-  }
+  };
+
+  const handleCloseSummaryModal = () => {
+    setSummaryModalOpen(false);
+    // 애니메이션을 위해 약간의 딜레이 후 상태 초기화
+    setTimeout(() => {
+      setSummaryUser(null);
+      setSummaryContent(null);
+    }, 300);
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* 헤더 */}
-      <div ref={analysisRef} className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border-2 border-pink-500">
+      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border-2 border-pink-500">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-300 to-blue-300 bg-clip-text text-transparent">
-            분석 결과
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+            <span>💕</span>
+            <span>분석 결과</span>
           </h1>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button
-              onClick={handleDownloadImage}
-              disabled={isDownloading}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-2xl hover:from-purple-600 hover:to-blue-600 transition-all shadow-md shadow-purple-500/50 active:scale-95 transform text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {isDownloading ? '저장 중...' : (
-                <>
-                  <span className="hidden sm:inline">이미지 저장</span>
-                  <span className="sm:hidden">저장</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={onReset}
-              className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base whitespace-nowrap"
-            >
-              <span className="hidden sm:inline">다시 분석</span>
-              <span className="sm:hidden">다시</span>
-            </button>
-          </div>
+          <button
+            onClick={onReset}
+            className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-2xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md shadow-pink-500/50 active:scale-95 transform text-sm sm:text-base"
+          >
+            다시 분석하기 🔄
+          </button>
         </div>
-        <div className="space-y-2 text-sm sm:text-base mb-6">
+        <div className="space-y-2 text-sm sm:text-base">
           <p className="flex items-center gap-2">
             <span className="text-gray-400 font-medium">총 메시지:</span>
             <span className="font-bold text-xl sm:text-2xl bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
@@ -514,172 +239,39 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
           </p>
           <p className="flex items-center gap-2">
             <span className="text-gray-400 font-medium">참여자:</span>
-            <span className="font-bold text-pink-400">
-              {analysis.users.filter(user => !user.endsWith('봇')).join(' & ')}
-            </span>
+            <span className="font-bold text-pink-400">{analysis.users.join(' & ')}</span>
           </p>
         </div>
-        
-        {/* 사용자 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 mb-6">
-          {Array.from(analysis.stats.messagesByUser.entries())
-            .filter(([user]) => !user.endsWith('봇')) // 'oo봇'으로 끝나는 유저 제외
-            .sort((a, b) => b[1] - a[1]) // 메시지 수 많은 순으로 정렬
-            .map(([user, count]) => (
-            <div key={user}>
+      </div>
+      
+      {/* 사용자별 통계 */}
+      <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-purple-500/20 p-5 sm:p-6 border border-purple-500/30">
+        <h2 className="text-xl sm:text-2xl font-bold text-pink-400 mb-4 sm:mb-5 flex items-center gap-2">
+          <span>💖</span>
+          <span>우리의 대화 요약</span>
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {Array.from(analysis.stats.messagesByUser.entries()).map(([user, count]) => (
+            <div
+              key={user}
+              className="cursor-pointer"
+              onClick={() => handleUserSummaryClick(user)}
+            >
               <UserStatsCard 
                 user={user}
                 messageCount={count}
                 totalMessages={analysis.stats.totalMessages}
-                avgResponseTime={avgResponseTime.get(user) || '데이터 없음'}
               />
             </div>
           ))}
         </div>
-        
-        
-        {/* 자주 사용한 단어 */}
-        <div className="mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-purple-300 mb-4">
-            자주 사용한 단어
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {analysis.users
-              .filter(user => !user.endsWith('봇')) // 'oo봇'으로 끝나는 유저 제외
-              .map((user) => {
-              const topWords = userWordAnalysis.get(user) || [];
-              const chartData = topWords.map((item, idx) => ({
-                name: item.word,
-                value: item.count,
-                fill: COLORS[idx % COLORS.length]
-              }));
-              
-              return (
-                <div key={user} className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                  <h3 className="text-base font-bold text-pink-400 mb-4 text-center">{user}님</h3>
-                  <div style={{ width: '100%', height: 300 }}>
-                    <ResponsiveContainer>
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={70}
-                          dataKey="value"
-                          nameKey="name"
-                          label={(props: any) =>  {
-                            const { name, percent, cx, cy, midAngle, outerRadius, fill } = props;
-                            const RADIAN = Math.PI / 180;
-                            const angle = midAngle || 0;
-                            // 아래쪽 라벨(90~270도)은 더 바깥으로 밀어냄
-                            const isBottom = angle > 45 && angle < 135;
-                            const radius = outerRadius + (isBottom ? 22 : 16);
-                            const x = (cx as number) + radius * Math.cos(-angle * RADIAN);
-                            const y = (cy as number) + radius * Math.sin(-angle * RADIAN);
-                            
-                            const nameLines = wrapLabelText(String(name ?? ''), 7);
-                            const percentLine = `${((percent || 0) * 100).toFixed(0)}%`;
-                            const lines = [...nameLines, percentLine];
-                            const lineHeight = 13;
-                            // 아래쪽 라벨은 위에서 시작, 위쪽 라벨은 중앙 기준
-                            const startY = isBottom 
-                              ? y 
-                              : y - ((lines.length - 1) * lineHeight) / 2;
-
-                            return (
-                              <text 
-                                x={x} 
-                                y={startY} 
-                                fill={fill} 
-                                textAnchor={x > cx ? 'start' : 'end'} 
-                                dominantBaseline={isBottom ? 'hanging' : 'central'}
-                                style={{ 
-                                  fontSize: '12px', 
-                                  fontWeight: '500',
-                                  fontFamily: 'Gamja Flower, Nanum Gothic, -apple-system, BlinkMacSystemFont, system-ui, sans-serif'
-                                }}
-                              >
-                                {lines.map((line, index) => (
-                                  <tspan key={index} x={x} dy={index === 0 ? 0 : lineHeight}>
-                                    {line}
-                                  </tspan>
-                                ))}
-                              </text>
-                            );
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        
-        {/* 월별 메시지 추이 */}
-        <div>
-          <h2 className="text-lg sm:text-xl font-bold text-purple-300 mb-4">
-            월별 메시지
-          </h2>
-          <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-            <div style={{ width: '100%', height: 400 }}>
-              <ResponsiveContainer>
-                <LineChart
-                  data={monthlyMessageData}
-                  margin={{ top: 10, right: 20 , left: 5, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis
-                    dataKey="month"
-                    stroke="#BBB"
-                    tick={{ fill: '#BBB', fontSize: 11 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis
-                    stroke="#BBB"
-                    tick={{ fill: '#BBB' }}
-                    fontSize="12px"
-                    width={38}
-                    tickMargin={4}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(30, 30, 30, 0.9)',
-                      borderColor: '#555',
-                      borderRadius: '10px',
-                      color: '#fff',
-                      fontSize: '12px'
-                    }}
-                  />
-                  <Legend wrapperStyle={{ color: '#BBB' , fontSize: '12px'}} />
-                  {analysis.users
-                    .filter(user => !user.endsWith('봇')) // 봇 제외
-                    .map((user, index) => (
-                    <Line
-                      key={user}
-                      type="monotone"
-                      dataKey={user}
-                      stroke={USER_COLORS[index % USER_COLORS.length]}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      activeDot={{ r: 3 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
       </div>
       
-      {/* 키워드 검색 */}
-      <div data-exclude-capture className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
-        <h2 className="text-xl sm:text-2xl font-bold text-purple-300 mb-4 sm:mb-5">
-          키워드 검색
+      {/* 키워드 분석 */}
+      <div className="bg-gray-900 bg-opacity-60 backdrop-blur-sm rounded-3xl shadow-xl shadow-pink-500/20 p-5 sm:p-6 border border-pink-500/30">
+        <h2 className="text-xl sm:text-2xl font-bold text-purple-400 mb-4 sm:mb-5 flex items-center gap-2">
+          <span>💗</span>
+          <span>키워드 분석</span>
         </h2>
         
         {/* 키워드 입력 */}
@@ -688,7 +280,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
             type="text"
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyDown={handleKeyPress}
+            onKeyPress={handleKeyPress}
             placeholder="키워드 입력"
             className="flex-1 px-4 py-3 sm:py-3.5 bg-gray-800 border-2 border-pink-500 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 focus:border-pink-400 text-sm sm:text-base placeholder-gray-500 text-white"
           />
@@ -713,7 +305,6 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                 <button
                   onClick={() => handleRemoveKeyword(keyword)}
                   className="text-pink-400 hover:text-pink-300 font-bold ml-1"
-                  aria-label={`${keyword} 키워드 삭제`}
                 >
                   ×
                 </button>
@@ -723,16 +314,9 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
         )}
         
         {/* 키워드 통계 */}
-        <div className="sr-only" aria-live="polite">
-          키워드 분석 결과.
-          {selectedUser ? `${selectedUser} 사용자 필터 적용.` : '전체 사용자 보기.'}
-          {selectedKeyword ? `선택된 키워드 ${selectedKeyword}, 메시지 ${filteredMessages.length}개.` : '선택된 키워드 없음.'}
-        </div>
         {keywordStats && keywords.length > 0 ? (
           <div className="space-y-4">
-            {analysis.users
-              .filter(user => !user.endsWith('봇')) // 봇 제외
-              .map(user => {
+            {analysis.users.map(user => {
               const userKeywords = keywordStats.get(user)
               return (
                 <div key={user} className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 sm:p-5 rounded-2xl border border-purple-500/50 shadow-lg shadow-purple-500/20">
@@ -755,7 +339,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                             {count}회
                           </div>
                           {count > 0 && (
-                            <div className="text-[10px] sm:text-xs text-pink-400 mt-1 font-medium">탭하여 메시지 보기</div>
+                            <div className="text-[10px] sm:text-xs text-pink-400 mt-1 font-medium">탭하여 메시지 보기 💕</div>
                           )}
                         </button>
                       )
@@ -777,22 +361,13 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
       
       {/* 키워드 메시지 목록 모달 */}
       {selectedKeyword && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
-          onClick={handleCloseMessageList}
-        >
-          <div
-            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col border-4 border-pink-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="keyword-modal-title"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col border-4 border-pink-200">
             {/* 헤더 */}
             <div className="bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 p-5 sm:p-6 text-white">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 id="keyword-modal-title" className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
                     <span>💕</span>
                     <span>"{selectedKeyword}"</span>
                   </h2>
@@ -808,10 +383,8 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                   </p>
                 </div>
                 <button
-                  ref={modalCloseButtonRef}
                   onClick={handleCloseMessageList}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
-                  aria-label="키워드 메시지 모달 닫기"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -837,7 +410,7 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                     </div>
                     <p className="text-gray-300 whitespace-pre-wrap break-words text-sm sm:text-base leading-relaxed">
                       {/* 키워드 하이라이트 */}
-                      {(highlightedKeywordRegex ? msg.message.split(highlightedKeywordRegex) : [msg.message]).map((part, i) => (
+                      {msg.message.split(new RegExp(`(${selectedKeyword})`, 'gi')).map((part, i) => (
                         part.toLowerCase() === selectedKeyword.toLowerCase() ? (
                           <mark key={i} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold px-1.5 py-0.5 rounded">
                             {part}
@@ -863,12 +436,21 @@ const wrapLabelText = (text: string, maxCharsPerLine: number) => {
                 onClick={handleCloseMessageList}
                 className="px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl hover:from-pink-500 hover:to-purple-500 transition-all shadow-md active:scale-95 transform text-sm sm:text-base"
               >
-                닫기
+                닫기 💕
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* AI 요약 모달 */}
+      <SummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={handleCloseSummaryModal}
+        summary={summaryContent}
+        isLoading={isSummaryLoading}
+        user={summaryUser || ''}
+      />
     </div>
   )
 }
